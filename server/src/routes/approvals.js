@@ -191,10 +191,11 @@ router.post('/negotiations/:negotiationId/resolve', requireRole('sales_rep', 'sa
       [neg.quotation_id, req.user.id, neg.id, accept_counter_discount ? 'Counter-discount accepted' : 'Negotiation resolved without discount change']
     );
 
-    // Re-run governance
+    await client.query('COMMIT');
+
+    // Re-run governance after commit so evaluateRisk sees the updated discount_pct on quotation_lines
     const govResult = await reEvaluateAfterNegotiation(neg.quotation_id, req.user.id);
 
-    await client.query('COMMIT');
     res.json({ message: 'Resolved', governance: govResult });
   } catch (err) {
     await client.query('ROLLBACK');

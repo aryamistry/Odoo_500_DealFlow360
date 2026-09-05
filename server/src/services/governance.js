@@ -139,6 +139,19 @@ async function reEvaluateAfterNegotiation(quotationId, actorUserId) {
        VALUES ($1, 'submitted', $2, $3)`,
       [quotationId, actorUserId, `Reapproval triggered after negotiation resolution. Risk: ${risk_level}`]
     );
+  } else {
+    // Bug 1 fix: no new approval steps needed → quote is now approved.
+    // Without this, the quotation stays in 'under_negotiation' forever and
+    // the customer can never call POST /portal/quotations/:id/confirm.
+    await pool.query(
+      "UPDATE quotations SET status='approved', approved_at=now() WHERE id=$1",
+      [quotationId]
+    );
+    await pool.query(
+      `INSERT INTO quotation_activity_log (quotation_id, action, actor_user_id, note)
+       VALUES ($1, 'approved', $2, $3)`,
+      [quotationId, actorUserId, `Auto-approved after negotiation resolution. Risk: ${risk_level}. No ceiling breaches.`]
+    );
   }
 
   return { risk_level, stepsCreated };

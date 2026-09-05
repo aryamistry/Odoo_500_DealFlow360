@@ -68,14 +68,9 @@ router.patch('/subscriptions/:id', requireRole('admin', 'finance', 'sales_manage
     params.push(req.params.id);
     await client.query(`UPDATE subscriptions SET ${updates.join(',')} WHERE id=$${i}`, params);
 
-    // Log the modification as a credit_note if applicable
-    if (reason) {
-      await client.query(
-        `INSERT INTO payment_transactions (type, subscription_id, amount, reason)
-         VALUES ('credit_note',$1,0,$2)`,
-        [req.params.id, reason]
-      );
-    }
+    // Bug 2 fix: Do NOT insert a payment_transaction with amount=0 — schema enforces amount > 0.
+    // A reschedule with a reason is informational only. No financial record is created.
+    // If an audit trail is needed in future, use a dedicated subscription_events table.
 
     await client.query('COMMIT');
     res.json({ message: 'Subscription updated' });

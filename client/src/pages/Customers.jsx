@@ -1,0 +1,217 @@
+// src/pages/Customers.jsx
+// Customer Management — full CRUD for the DealFlow360 customer entity.
+// Replaces the "quotation scraping hack" previously used in QuotationsList.
+import { useEffect, useState } from 'react';
+import api from '../api/client';
+import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
+
+function TierBadge({ tier }) {
+  const cls = { Gold: 'badge-approved', Silver: 'badge-pending', Bronze: 'badge-draft' };
+  return <span className={`badge ${cls[tier] || 'badge-draft'}`}>{tier}</span>;
+}
+
+function CustomerForm({ tiers, onSave, onCancel, initial = null }) {
+  const [form, setForm] = useState({
+    company_name: initial?.company_name || '',
+    email: initial?.email || '',
+    tier: initial?.tier || (tiers[0]?.tier || ''),
+    password: '',
+  });
+  const isEdit = !!initial;
+
+  const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
+
+  const submit = async () => {
+    if (!form.company_name.trim()) return toast.error('Company name required');
+    if (!isEdit && !form.email.trim()) return toast.error('Email required');
+    if (!form.tier) return toast.error('Tier required');
+    try {
+      if (isEdit) {
+        const patch = { company_name: form.company_name, tier: form.tier };
+        const r = await api.patch(`/admin/customers/${initial.id}`, patch);
+        onSave(r.data);
+        toast.success('Customer updated');
+      } else {
+        const body = { company_name: form.company_name, email: form.email, tier: form.tier };
+        if (form.password) body.password = form.password;
+        const r = await api.post('/admin/customers', body);
+        onSave(r.data);
+        toast.success('Customer created');
+      }
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed');
+    }
+  };
+
+  return (
+    <div className="card mb-6">
+      <h2 className="font-semibold text-slate-200 mb-4">{isEdit ? 'Edit Customer' : 'New Customer'}</h2>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="form-group">
+          <label className="label">Company Name *</label>
+          <input className="input" value={form.company_name} onChange={handle('company_name')} placeholder="Acme Corp" />
+        </div>
+        {!isEdit && (
+          <div className="form-group">
+            <label className="label">Email *</label>
+            <input type="email" className="input" value={form.email} onChange={handle('email')} placeholder="contact@acme.com" />
+          </div>
+        )}
+        <div className="form-group">
+          <label className="label">Tier *</label>
+          <select className="select" value={form.tier} onChange={handle('tier')}>
+            {tiers.map(t => (
+              <option key={t.tier} value={t.tier}>
+                {t.tier} — max {t.max_discount_pct}% discount
+              </option>
+            ))}
+          </select>
+        </div>
+        {!isEdit && (
+          <div className="form-group">
+            <label className="label">Portal Password <span className="text-slate-500">(optional)</span></label>
+            <input type="password" className="input" value={form.password} onChange={handle('password')} placeholder="Leave blank if no portal access" />
+          </div>
+        )}
+      </div>
+      <div className="flex gap-3 mt-4">
+        <button onClick={submit} className="btn-primary">{isEdit ? 'Save Changes' : 'Create Customer'}</button>
+        <button onClick={onCancel} className="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+export default function Customers() {
+  const { user } = useAuth();
+  const [customers, setCustomers] = useState([]);
+  const [tiers, setTiers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filterTier, setFilterTier] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    api.get('/admin/customers')
+      .then(r => setCustomers(r.data))
+      .catch(e => toast.error(e.response?.data?.error || 'Failed to load customers'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    api.get('/admin/customer-tiers').then(r => setTiers(r.data)).catch(() => {});
+  }, []);
+
+  const handleCreated = (newCustomer) => {
+    setCustomers(prev => [newCustomer, ...prev]);
+    setCreating(false);
+  };
+
+  const handleUpdated = (updated) => {
+    setCustomers(prev => prev.map(c => c.id === updated.id ? updated : c));
+    setEditingId(null);
+  };
+
+  const filtered = customers.filter(c => {
+    const matchSearch = !search || c.company_name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
+    const matchTier = !filterTier || c.tier === filterTier;
+    return matchSearch && matchTier;
+  });
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Customers</h1>
+          <p className="page-subtitle">{customers.length} customers</p>
+        </div>
+        {!creating && (
+          <button onClick={() => { setCreating(true); setEditingId(null); }} className="btn-primary">
+            + New Customer
+          </button>
+        )}
+      </div>
+
+      {creating && (
+        <CustomerForm
+          tiers={tiers}
+          onSave={handleCreated}
+          onCancel={() => setCreating(false)}
+        />
+      )}
+
+      {/* Filters */}
+      <div className="flex gap-3 mb-4 flex-wrap items-center">
+        <input
+          className="input flex-1 max-w-xs"
+          placeholder="Search by name or email…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select className="select w-36" value={filterTier} onChange={e => setFilterTier(e.target.value)}>
+          <option value="">All Tiers</option>
+          {tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}</option>)}
+        </select>
+      </div>
+
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Email</th>
+              <th>Tier</th>
+              <th>Max Discount</th>
+              <th>Created</th>
+              {(user?.role === 'admin' || user?.role === 'sales_manager') && <th></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={6} className="text-center py-8 text-slate-500">Loading…</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-8 text-slate-500">No customers found</td></tr>
+            ) : filtered.map(c => (
+              c.id === editingId ? (
+                <tr key={c.id}>
+                  <td colSpan={6} className="p-0">
+                    <div className="p-4">
+                      <CustomerForm
+                        tiers={tiers}
+                        initial={c}
+                        onSave={handleUpdated}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={c.id}>
+                  <td className="font-medium text-slate-200">{c.company_name}</td>
+                  <td className="text-slate-400 text-sm">{c.email}</td>
+                  <td><TierBadge tier={c.tier} /></td>
+                  <td className="text-slate-400 text-sm">{c.tier_max_discount_pct}%</td>
+                  <td className="text-slate-500 text-xs">{new Date(c.created_at).toLocaleDateString()}</td>
+                  {(user?.role === 'admin' || user?.role === 'sales_manager') && (
+                    <td>
+                      <button
+                        onClick={() => { setEditingId(c.id); setCreating(false); }}
+                        className="btn-secondary btn-sm"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              )
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

@@ -99,4 +99,35 @@ router.post('/:quotationId/consolidate', requireRole('admin', 'sales_manager'), 
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+// ── Mark Shipped (Bug 3 fix) ──────────────────────────────────────────────────
+// Sets shipped_at = now() on a specific fulfillment_line.
+// This is what the Delivery Slippage dashboard tile queries against.
+// Only non-backorder lines should be marked as shipped.
+router.post('/:quotationId/ship', requireRole('admin', 'sales_manager', 'finance'), async (req, res) => {
+  const { fulfillment_line_id } = req.body;
+  if (!fulfillment_line_id)
+    return res.status(400).json({ error: 'fulfillment_line_id is required' });
+
+  try {
+    // Verify the fulfillment line belongs to this quotation and is not a backorder
+    const { rows: [fl] } = await pool.query(
+      `SELECT fl.id, fl.is_backorder, fl.shipped_at
+       FROM fulfillment_lines fl
+       JOIN quotation_lines ql ON ql.id = fl.quotation_line_id
+       WHERE fl.id = $1 AND ql.quotation_id = $2`,
+      [fulfillment_line_id, req.params.quotationId]
+    );
+
+    if (!fl) return res.status(404).json({ error: 'Fulfillment line not found for this quotation' });
+    if (fl.is_backorder) return res.status(400).json({ error: 'Cannot mark a backorder line as shipped' });
+    if (fl.shipped_at) return res.status(400).json({ error: 'Already marked as shipped' });
+
+    const { rows: [updated] } = await pool.query(
+      'UPDATE fulfillment_lines SET shipped_at = now() WHERE id = $1 RETURNING *',
+      [fulfillment_line_id]
+    );
+    res.json({ message: 'Marked as shipped', fulfillment_line: updated });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

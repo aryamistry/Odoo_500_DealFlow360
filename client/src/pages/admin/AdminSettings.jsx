@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
+import Customers from '../Customers';
 
-const TABS = ['Categories', 'Customer Tiers', 'Approval Rules', 'Warehouses', 'Subscription Plans', 'Products', 'Price Lists', 'Upsell Rules'];
+const TABS = ['Customers', 'Categories', 'Customer Tiers', 'Approval Rules', 'Warehouses', 'Subscription Plans', 'Products', 'Price Lists', 'Upsell Rules'];
 
 // ── Categories ────────────────────────────────────────────────────────────────
 function CategoriesTab() {
@@ -298,6 +299,7 @@ export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState('Categories');
 
   const TabComponents = {
+    'Customers': Customers,
     'Categories': CategoriesTab,
     'Customer Tiers': TiersTab,
     'Approval Rules': ApprovalRulesTab,

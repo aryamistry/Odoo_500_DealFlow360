@@ -53,9 +53,11 @@ These rules apply to **every phase** in this project and must be respected by al
 | **Phase 9** | Customer Portal Negotiation | 2-panel review, counter-offer, auto re-approval | ✅ Completed | 2/2 Passed |
 | **Phase 10** | Deal Health Radar & Analytics | Stalled deals, discount anomalies, Recharts graphs | ✅ Completed | 5/5 Passed |
 | **Phase 11** | Demo Walkthrough & Deliverables | Demo accounts, architecture docs, verified E2E | ✅ Completed | Verified |
+| **Phase 12** | Customer Management & Audit Fixes | Full Customer CRUD, inline creation, tier integration, Bugs 1/2/3 | ✅ Completed | 23/23 Passed |
 
 **Overall Progress:** **100% Complete**  
-**Automated Phase Test Suite:** **33/33 Tests Passed (0 Failures)**  
+**Automated Phase Test Suite:** **34/34 Tests Passed (0 Failures)**  
+**Customer Lifecycle Suite (`test_customer_lifecycle.js`):** **23/23 Tests Passed (0 Failures)**  
 **Production Frontend Build:** **Vite Build Successful (0 Errors)**
 
 ---
@@ -230,6 +232,27 @@ These rules apply to **every phase** in this project and must be respected by al
   - **Gold Customer:** `initech@customer.com` / `Customer@123`
 - [x] Backend running on `http://localhost:5000`
 - [x] Frontend running on `http://localhost:5173`
+
+---
+
+### Phase 12 — Customer Management & Audit Stabilization ✅
+- [x] `server/src/routes/admin/customers.js`:
+  - `GET /api/admin/customers` — returns all customers with tier metadata and max discount ceilings
+  - `POST /api/admin/customers` — creates customer with company name, email, tier, and optional bcrypt password
+  - `PATCH /api/admin/customers/:id` — updates company name and customer tier
+- [x] `client/src/pages/Customers.jsx` — dedicated customer management page with full CRUD, tier selector from DB, and search/filter
+- [x] `client/src/pages/QuotationsList.jsx` — completely removed quotation scraping hack; dynamically fetches real customers from `/api/admin/customers` and tiers from `/api/admin/customer-tiers`; provides inline `+ New Customer` modal to create and auto-select customers on the fly
+- [x] `client/src/components/Layout.jsx` — integrated Customers into sidebar navigation for sales reps, managers, and admins
+- [x] `client/src/pages/admin/AdminSettings.jsx` — added Customers tab into Admin Configuration dashboard
+- [x] `server/src/services/governance.js` & `server/src/routes/approvals.js` (Bug 1 Fix):
+  - Fixed transaction isolation and status update when negotiation resolution does not breach discount ceilings, auto-transitioning quote to `approved` so customer can confirm
+- [x] `server/src/routes/billing.js` (Bug 2 Fix):
+  - Removed invalid 0-amount `payment_transactions` insert on subscription reschedule, preventing schema CHECK constraint failure
+- [x] `server/src/routes/fulfillment.js` & `client/src/pages/FulfillmentDetail.jsx` (Bug 3 Fix):
+  - `POST /api/fulfillment/:quotationId/ship` updates `fulfillment_lines.shipped_at` for non-backorder shipments
+  - Added interactive "Mark Shipped" button to fulfillment details table
+- [x] `test_customer_lifecycle.js` — 23 automated end-to-end integration tests verifying customer creation, price list resolution, governance participation, data isolation, and all 3 bug fixes
+
 
 ---
 

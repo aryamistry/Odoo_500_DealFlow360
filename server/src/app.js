@@ -25,9 +25,7 @@ app.use('/api/fulfillment',       require('./routes/fulfillment'));
 app.use('/api',                   require('./routes/billing'));
 app.use('/api/billing',           require('./routes/billing'));
 app.use('/api/portal',            require('./routes/portal'));
-app.use('/api',                   require('./routes/analytics'));
-
-// Admin routes
+// Admin routes (mounted before analytics catch-all)
 app.use('/api/admin/categories',         require('./routes/admin/categories'));
 app.use('/api/admin/customer-tiers',     require('./routes/admin/customer_tiers'));
 app.use('/api/admin/approval-rules',     require('./routes/admin/approval_rules'));
@@ -36,6 +34,10 @@ app.use('/api/admin/subscription-plans', require('./routes/admin/subscription_pl
 app.use('/api/admin/products',           require('./routes/admin/products'));
 app.use('/api/admin/price-lists',        require('./routes/admin/price_lists'));
 app.use('/api/admin/upsell-rules',       require('./routes/admin/upsell_rules'));
+app.use('/api/admin/customers',          require('./routes/admin/customers'));
+
+// Analytics & Reports
+app.use('/api',                   require('./routes/analytics'));
 
 // (Health check moved to top of route section above analytics catch-all)
 

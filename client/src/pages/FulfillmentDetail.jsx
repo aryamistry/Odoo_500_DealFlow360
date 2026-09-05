@@ -23,6 +23,14 @@ export default function FulfillmentDetail() {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
+  const markShipped = async (fulfillment_line_id) => {
+    try {
+      await api.post(`/fulfillment/${id}/ship`, { fulfillment_line_id });
+      toast.success('Marked as shipped');
+      fetchData();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to mark shipped'); }
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64 text-slate-400">Loading...</div>;
 
   return (
@@ -47,7 +55,15 @@ export default function FulfillmentDetail() {
 
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Warehouse</th><th>Qty Fulfilled</th><th>Backorder?</th><th>Shipped At</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Warehouse</th>
+                    <th>Qty Fulfilled</th>
+                    <th>Backorder?</th>
+                    <th>Shipped At</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {line.fulfillment_lines?.length > 0 ? line.fulfillment_lines.map((fl, i) => (
                     <tr key={i}>
@@ -55,9 +71,22 @@ export default function FulfillmentDetail() {
                       <td>{fl.quantity_fulfilled}</td>
                       <td>{fl.is_backorder ? <span className="badge badge-rejected">Yes</span> : <span className="badge badge-approved">No</span>}</td>
                       <td className="text-slate-500 text-xs">{fl.shipped_at ? new Date(fl.shipped_at).toLocaleString() : '—'}</td>
+                      <td>
+                        {!fl.is_backorder && !fl.shipped_at && (
+                          <button
+                            onClick={() => markShipped(fl.id)}
+                            className="btn-primary btn-sm"
+                          >
+                            Mark Shipped
+                          </button>
+                        )}
+                        {fl.shipped_at && (
+                          <span className="badge badge-approved text-xs">Shipped</span>
+                        )}
+                      </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={4} className="text-center py-4 text-slate-500">No fulfillment data yet</td></tr>
+                    <tr><td colSpan={5} className="text-center py-4 text-slate-500">No fulfillment data yet</td></tr>
                   )}
                 </tbody>
               </table>

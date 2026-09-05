@@ -24,7 +24,10 @@ export default function QuotationsList() {
   const [status, setStatus] = useState('');
   const [customers, setCustomers] = useState([]);
   const [creating, setCreating] = useState(searchParams.get('new') === 'true');
-  const [newCustomerId, setNewCustomerId] = useState('');
+  const [tiers, setTiers] = useState([]);
+  const [showNewCustModal, setShowNewCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState({ company_name: '', email: '', tier: '', password: '' });
+  const [submittingCust, setSubmittingCust] = useState(false);
 
   const fetchQuotes = () => {
     setLoading(true);
@@ -37,17 +40,52 @@ export default function QuotationsList() {
   useEffect(() => { fetchQuotes(); }, [status]);
 
   useEffect(() => {
-    api.get('/admin/products').then(() => {}).catch(() => {});
-    // Fetch customers for the create form
-    api.get('/admin/customer-tiers').then(() => {}).catch(() => {});
-    fetch('/api/auth/me', { credentials: 'include' }).then(() => {}).catch(() => {});
-    // Simple hack: get customers via quotations context
-    api.get('/quotations').then(r => {
-      const unique = {};
-      r.data.forEach(q => { if (!unique[q.customer_id]) unique[q.customer_id] = { id: q.customer_id, name: q.customer_name }; });
-      setCustomers(Object.values(unique));
-    }).catch(() => {});
+    // Load real customers from database via /admin/customers
+    api.get('/admin/customers')
+      .then(r => setCustomers(r.data))
+      .catch(() => {});
+
+    // Load available customer tiers from database
+    api.get('/admin/customer-tiers')
+      .then(r => {
+        setTiers(r.data);
+        if (r.data?.length > 0) {
+          setNewCustForm(f => ({ ...f, tier: f.tier || r.data[0].tier }));
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleCreateCustomerInline = async (e) => {
+    if (e) e.preventDefault();
+    if (!newCustForm.company_name.trim()) return toast.error('Company name required');
+    if (!newCustForm.email.trim()) return toast.error('Email required');
+    if (!newCustForm.tier) return toast.error('Tier required');
+
+    setSubmittingCust(true);
+    try {
+      const payload = {
+        company_name: newCustForm.company_name.trim(),
+        email: newCustForm.email.trim(),
+        tier: newCustForm.tier,
+      };
+      if (newCustForm.password) payload.password = newCustForm.password;
+
+      const r = await api.post('/admin/customers', payload);
+      const created = r.data;
+
+      // Add to customers state and automatically select the new customer
+      setCustomers(prev => [created, ...prev]);
+      setNewCustomerId(created.id);
+      setShowNewCustModal(false);
+      setNewCustForm({ company_name: '', email: '', tier: tiers[0]?.tier || '', password: '' });
+      toast.success(`Customer '${created.company_name}' created & selected`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to create customer');
+    } finally {
+      setSubmittingCust(false);
+    }
+  };
 
   const createQuote = async () => {
     if (!newCustomerId) return toast.error('Select a customer');
@@ -74,16 +112,113 @@ export default function QuotationsList() {
 
       {/* Create form */}
       {creating && (
-        <div className="card mb-6 flex gap-3 items-end">
-          <div className="form-group flex-1">
-            <label className="label">Select Customer</label>
-            <select className="select" value={newCustomerId} onChange={e => setNewCustomerId(e.target.value)}>
-              <option value="">-- Choose customer --</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+        <div className="card mb-6 border border-indigo-500/30 bg-slate-900/90 shadow-xl">
+          <div className="flex flex-col md:flex-row gap-3 items-end">
+            <div className="form-group flex-1 w-full">
+              <div className="flex justify-between items-center mb-1">
+                <label className="label mb-0">Customer</label>
+                <button
+                  type="button"
+                  onClick={() => setShowNewCustModal(true)}
+                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
+                >
+                  + New Customer
+                </button>
+              </div>
+              <select className="select w-full" value={newCustomerId} onChange={e => setNewCustomerId(e.target.value)}>
+                <option value="">-- Choose customer --</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name} ({c.tier || c.tier_name})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 w-full md:w-auto">
+              <button onClick={createQuote} className="btn-primary flex-1 md:flex-initial">Proceed to Builder</button>
+              <button onClick={() => setCreating(false)} className="btn-secondary">Cancel</button>
+            </div>
           </div>
-          <button onClick={createQuote} className="btn-primary">Create</button>
-          <button onClick={() => setCreating(false)} className="btn-secondary">Cancel</button>
+
+          {/* Inline New Customer Modal / Sub-Card */}
+          {showNewCustModal && (
+            <div className="mt-4 pt-4 border-t border-slate-800 bg-slate-950/60 p-4 rounded-lg border border-slate-700/60 animate-fadeIn">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2">
+                  <span>👤</span> Quick Add Customer
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowNewCustModal(false)}
+                  className="text-slate-400 hover:text-slate-200 text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div className="form-group">
+                  <label className="label text-xs">Company Name *</label>
+                  <input
+                    className="input text-sm py-1.5"
+                    placeholder="e.g. Zenith Co"
+                    value={newCustForm.company_name}
+                    onChange={e => setNewCustForm(f => ({ ...f, company_name: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label text-xs">Email *</label>
+                  <input
+                    type="email"
+                    className="input text-sm py-1.5"
+                    placeholder="e.g. contact@zenith.com"
+                    value={newCustForm.email}
+                    onChange={e => setNewCustForm(f => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label text-xs">Tier *</label>
+                  <select
+                    className="select text-sm py-1.5"
+                    value={newCustForm.tier}
+                    onChange={e => setNewCustForm(f => ({ ...f, tier: e.target.value }))}
+                  >
+                    {tiers.map(t => (
+                      <option key={t.tier} value={t.tier}>
+                        {t.tier} (max discount: {t.max_discount_pct}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label text-xs">Portal Password <span className="text-slate-500">(optional)</span></label>
+                  <input
+                    type="password"
+                    className="input text-sm py-1.5"
+                    placeholder="Optional login password"
+                    value={newCustForm.password}
+                    onChange={e => setNewCustForm(f => ({ ...f, password: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowNewCustModal(false)}
+                  className="btn-secondary btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingCust}
+                  onClick={handleCreateCustomerInline}
+                  className="btn-primary btn-sm"
+                >
+                  {submittingCust ? 'Creating…' : 'Create & Select Customer'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

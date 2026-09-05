@@ -18,6 +18,7 @@ import InvoiceDetail from './pages/InvoiceDetail';
 import DealHealth from './pages/DealHealth';
 import Reports from './pages/Reports';
 import AdminSettings from './pages/admin/AdminSettings';
+import Customers from './pages/Customers';
 import Portal from './pages/Portal';
 import Layout from './components/Layout';
 
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
         <Route path="invoices" element={<InvoicesList />} />
         <Route path="invoices/:id" element={<InvoiceDetail />} />
+        <Route path="customers" element={<Customers />} />
         <Route path="deal-health" element={<DealHealth />} />
         <Route path="reports" element={<Reports />} />
         <Route path="admin" element={<AdminSettings />} />
