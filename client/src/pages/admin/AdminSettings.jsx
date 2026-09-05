@@ -15,26 +15,32 @@ function CategoriesTab() {
   const [form, setForm] = useState({ name: '', max_discount_pct: '' });
 
   const create = async () => {
+    const name = form.name.trim();
+    if (!name) return toast.error('Category name is required');
+    const disc = parseFloat(form.max_discount_pct);
+    if (isNaN(disc) || disc < 0 || disc > 100) {
+      return toast.error('Max discount percentage must be between 0% and 100%');
+    }
     try {
-      await api.post('/admin/categories', form);
-      toast.success('Created');
+      await api.post('/admin/categories', { name, max_discount_pct: disc });
+      toast.success('Category created');
       setForm({ name: '', max_discount_pct: '' });
       invalidate('categories'); // drop cache so next read re-fetches
     }
-    catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to create category'); }
   };
 
   const del = async (id) => {
-    if (!confirm('Delete?')) return;
-    try { await api.delete(`/admin/categories/${id}`); toast.success('Deleted'); invalidate('categories'); }
-    catch (e) { toast.error('Failed'); }
+    if (!confirm('Are you sure you want to delete this category?')) return;
+    try { await api.delete(`/admin/categories/${id}`); toast.success('Category deleted'); invalidate('categories'); }
+    catch (e) { toast.error('Failed to delete category'); }
   };
 
   return (
     <div>
       <div className="flex gap-3 mb-6 items-end">
         <div className="form-group flex-1"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Hardware" /></div>
-        <div className="form-group w-36"><label className="label">Max Discount %</label><input type="number" className="input" value={form.max_discount_pct} onChange={e => setForm(f => ({...f, max_discount_pct: e.target.value}))} /></div>
+        <div className="form-group w-36"><label className="label">Max Discount %</label><input type="number" min="0" max="100" className="input" value={form.max_discount_pct} onChange={e => setForm(f => ({...f, max_discount_pct: e.target.value}))} /></div>
         <button onClick={create} className="btn-primary">Add</button>
       </div>
       <div className="table-wrap">
@@ -52,12 +58,16 @@ function TiersTab() {
   const [editing, setEditing] = useState({});
 
   const save = async (tier) => {
+    const val = parseFloat(editing[tier]);
+    if (isNaN(val) || val < 0 || val > 100) {
+      return toast.error('Max discount percentage must be between 0% and 100%');
+    }
     try {
-      await api.patch(`/admin/customer-tiers/${tier}`, { max_discount_pct: parseFloat(editing[tier]) });
-      toast.success('Updated');
+      await api.patch(`/admin/customer-tiers/${tier}`, { max_discount_pct: val });
+      toast.success('Tier ceiling updated');
       invalidate('tiers');
     }
-    catch (e) { toast.error('Failed'); }
+    catch (e) { toast.error('Failed to update tier'); }
   };
 
   return (
@@ -756,23 +766,35 @@ function ProductsTab() {
   useEffect(() => { load(); }, []);
 
   const create = async () => {
+    const name = form.name.trim();
+    if (!name) return toast.error('Product name is required');
+    if (!form.category_id) return toast.error('Please select a category');
+    const price = parseFloat(form.price);
+    if (isNaN(price) || price < 0) return toast.error('Price must be a valid non-negative number');
+    const cost = parseFloat(form.cost_price);
+    if (isNaN(cost) || cost < 0) return toast.error('Cost price must be a valid non-negative number');
+    const tax = parseFloat(form.tax_pct);
+    if (isNaN(tax) || tax < 0 || tax > 100) return toast.error('Tax percentage must be between 0% and 100%');
+
     try {
       await api.post('/admin/products', {
-        ...form,
-        category_id: parseInt(form.category_id),
-        price: parseFloat(form.price),
-        cost_price: parseFloat(form.cost_price),
-        tax_pct: parseFloat(form.tax_pct),
-        subscription_plan_id: form.subscription_plan_id ? parseInt(form.subscription_plan_id) : null,
+        name,
+        category_id: parseInt(form.category_id, 10),
+        price: price,
+        cost_price: cost,
+        tax_pct: tax,
+        subscription_plan_id: form.subscription_plan_id ? parseInt(form.subscription_plan_id, 10) : null,
       });
-      toast.success('Created');
+      toast.success('Product created');
+      setForm({ name: '', category_id: '', price: '', cost_price: '', tax_pct: 18, subscription_plan_id: '' });
       load();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create product'); }
   };
 
   const archive = async (id) => {
+    if (!confirm('Archive this product?')) return;
     try { await api.delete(`/admin/products/${id}`); toast.success('Archived'); load(); }
-    catch (e) { toast.error('Failed'); }
+    catch (e) { toast.error('Failed to archive product'); }
   };
 
   return (
@@ -780,8 +802,8 @@ function ProductsTab() {
       <div className="card mb-6 space-y-3">
         <h3 className="font-semibold">New Product</h3>
         <div className="grid grid-cols-2 gap-3">
-          <div className="form-group col-span-2"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} /></div>
-          <div className="form-group"><label className="label">Category</label>
+          <div className="form-group col-span-2"><label className="label">Name *</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Enterprise Server" /></div>
+          <div className="form-group"><label className="label">Category *</label>
             <select className="select" value={form.category_id} onChange={e => setForm(f => ({...f, category_id: e.target.value}))}>
               <option value="">-- Select --</option>
               {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -793,9 +815,9 @@ function ProductsTab() {
               {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
-          <div className="form-group"><label className="label">Price (₹)</label><input type="number" className="input" value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))} /></div>
-          <div className="form-group"><label className="label">Cost Price (₹)</label><input type="number" className="input" value={form.cost_price} onChange={e => setForm(f => ({...f, cost_price: e.target.value}))} /></div>
-          <div className="form-group"><label className="label">Tax %</label><input type="number" className="input" value={form.tax_pct} onChange={e => setForm(f => ({...f, tax_pct: e.target.value}))} /></div>
+          <div className="form-group"><label className="label">Price (₹) *</label><input type="number" min="0" step="0.01" className="input" value={form.price} onChange={e => setForm(f => ({...f, price: e.target.value}))} /></div>
+          <div className="form-group"><label className="label">Cost Price (₹) *</label><input type="number" min="0" step="0.01" className="input" value={form.cost_price} onChange={e => setForm(f => ({...f, cost_price: e.target.value}))} /></div>
+          <div className="form-group"><label className="label">Tax %</label><input type="number" min="0" max="100" className="input" value={form.tax_pct} onChange={e => setForm(f => ({...f, tax_pct: e.target.value}))} /></div>
         </div>
         <button onClick={create} className="btn-primary">Create Product</button>
       </div>
@@ -823,8 +845,12 @@ function PriceListsTab() {
 
   const save = async (id) => {
     const ed = editing[id] || {};
-    try { await api.patch(`/admin/price-lists/${id}`, ed); toast.success('Updated'); invalidate('priceLists'); }
-    catch (e) { toast.error('Failed'); }
+    if (ed.adjustment_value !== undefined && ed.adjustment_value !== '') {
+      const val = parseFloat(ed.adjustment_value);
+      if (isNaN(val)) return toast.error('Adjustment value must be a valid number');
+    }
+    try { await api.patch(`/admin/price-lists/${id}`, ed); toast.success('Price list updated'); invalidate('priceLists'); }
+    catch (e) { toast.error('Failed to update price list'); }
   };
 
   return (
@@ -856,8 +882,30 @@ function UpsellRulesTab() {
   useEffect(() => { load(); }, []);
 
   const create = async () => {
-    try { await api.post('/admin/upsell-rules', { ...form, primary_product_id: parseInt(form.primary_product_id), suggested_product_id: parseInt(form.suggested_product_id), min_margin_pct: form.min_margin_pct ? parseFloat(form.min_margin_pct) : null }); toast.success('Created'); load(); }
-    catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    if (!form.primary_product_id) return toast.error('Please select a primary product');
+    if (!form.suggested_product_id) return toast.error('Please select a suggested product');
+    if (form.primary_product_id === form.suggested_product_id) {
+      return toast.error('Primary product and suggested product cannot be the same');
+    }
+    let minMargin = null;
+    if (form.min_margin_pct !== '' && form.min_margin_pct !== null && form.min_margin_pct !== undefined) {
+      minMargin = parseFloat(form.min_margin_pct);
+      if (isNaN(minMargin) || minMargin < 0 || minMargin > 100) {
+        return toast.error('Minimum margin % must be between 0% and 100%');
+      }
+    }
+    try {
+      await api.post('/admin/upsell-rules', {
+        ...form,
+        primary_product_id: parseInt(form.primary_product_id, 10),
+        suggested_product_id: parseInt(form.suggested_product_id, 10),
+        min_margin_pct: minMargin
+      });
+      toast.success('Upsell rule created');
+      setForm({ primary_product_id: '', suggested_product_id: '', is_promoted: false, min_margin_pct: '' });
+      load();
+    }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to create upsell rule'); }
   };
 
   const del = async (id) => { try { await api.delete(`/admin/upsell-rules/${id}`); toast.success('Deleted'); load(); } catch (e) { toast.error('Failed'); } };

@@ -30,24 +30,29 @@ export default function SubscriptionDetail() {
 
   const handleModify = async () => {
     if (!modifyForm.next_bill_date) return toast.error('Next bill date is required');
+    const today = new Date().toISOString().slice(0, 10);
+    if (modifyForm.next_bill_date < today) {
+      return toast.error('Next bill date cannot be set in the past');
+    }
     try {
       await api.patch(`/subscriptions/${id}`, modifyForm);
-      toast.success('Subscription updated');
+      toast.success('Subscription billing date updated');
       setShowModify(false);
       setModifyForm({ next_bill_date: '', reason: '' });
       fetchSub();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update subscription'); }
   };
 
   const handleCancel = async () => {
-    if (!cancelForm.reason) return toast.error('Reason required to cancel');
+    const reason = cancelForm.reason.trim();
+    if (!reason) return toast.error('Please provide a reason for cancellation');
     if (!confirm(`Cancel this subscription? This action cannot be undone.`)) return;
     try {
-      await api.post(`/subscriptions/${id}/cancel`, cancelForm);
+      await api.post(`/subscriptions/${id}/cancel`, { reason });
       toast.success('Subscription cancelled');
       setShowCancel(false);
       fetchSub();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to cancel subscription'); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64 text-slate-400">Loading...</div>;

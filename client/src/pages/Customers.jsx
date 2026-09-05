@@ -24,24 +24,36 @@ function CustomerForm({ tiers, onSave, onCancel, initial = null }) {
   const handle = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
 
   const submit = async () => {
-    if (!form.company_name.trim()) return toast.error('Company name required');
-    if (!isEdit && !form.email.trim()) return toast.error('Email required');
-    if (!form.tier) return toast.error('Tier required');
+    const name = form.company_name.trim();
+    if (!name) return toast.error('Company name is required');
+    if (name.length < 2) return toast.error('Company name must be at least 2 characters');
+    if (!form.tier) return toast.error('Please select a customer tier');
+
+    if (!isEdit) {
+      const email = form.email.trim();
+      if (!email) return toast.error('Email is required');
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) return toast.error('Please enter a valid email address');
+      if (form.password && form.password.length < 6) {
+        return toast.error('Portal password must be at least 6 characters long');
+      }
+    }
+
     try {
       if (isEdit) {
-        const patch = { company_name: form.company_name, tier: form.tier };
+        const patch = { company_name: name, tier: form.tier };
         const r = await api.patch(`/admin/customers/${initial.id}`, patch);
         onSave(r.data);
         toast.success('Customer updated');
       } else {
-        const body = { company_name: form.company_name, email: form.email, tier: form.tier };
+        const body = { company_name: name, email: form.email.trim(), tier: form.tier };
         if (form.password) body.password = form.password;
         const r = await api.post('/admin/customers', body);
         onSave(r.data);
         toast.success('Customer created');
       }
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Failed');
+      toast.error(e.response?.data?.error || 'Failed to save customer');
     }
   };
 

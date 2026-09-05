@@ -22,10 +22,13 @@ export default function ApprovalDetail() {
   useEffect(() => { fetchData(); }, [id]);
 
   const act = async (stepId, action) => {
+    if ((action === 'reject' || action === 'return') && !note.trim()) {
+      return toast.error(`Please provide a note or reason to ${action === 'return' ? 'return for revision' : 'reject'} this quotation.`);
+    }
     const confirmMsg = { approve: 'Approve this quotation?', reject: 'Reject this quotation?', return: 'Return for revision?' };
     if (!confirm(confirmMsg[action])) return;
     try {
-      await api.post(`/approvals/steps/${stepId}/${action}`, { note });
+      await api.post(`/approvals/steps/${stepId}/${action}`, { note: note.trim() });
       toast.success(`${action.charAt(0).toUpperCase() + action.slice(1)}d!`);
       setNote('');
       fetchData();

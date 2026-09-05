@@ -26,20 +26,43 @@ export default function Portal() {
   };
 
   const submitNegotiation = async () => {
-    if (!negForm.customer_comment) return toast.error('Comment required');
+    if (!negForm.customer_comment.trim()) return toast.error('Please enter a message explaining what you would like to change');
+    if (negForm.counter_discount_pct !== '' && negForm.counter_discount_pct !== null && negForm.counter_discount_pct !== undefined) {
+      const disc = parseFloat(negForm.counter_discount_pct);
+      if (isNaN(disc) || disc < 0 || disc > 100) {
+        return toast.error('Counter discount percentage must be between 0% and 100%');
+      }
+    }
+    if (negForm.requested_delivery_date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (negForm.requested_delivery_date < today) {
+        return toast.error('Requested delivery date cannot be in the past');
+      }
+    }
+
     try {
-      await api.post(`/portal/quotations/${selected.id}/negotiate`, negForm);
+      await api.post(`/portal/quotations/${selected.id}/negotiate`, {
+        customer_comment: negForm.customer_comment.trim(),
+        counter_discount_pct: negForm.counter_discount_pct !== '' ? parseFloat(negForm.counter_discount_pct) : null,
+        requested_delivery_date: negForm.requested_delivery_date || null,
+      });
       toast.success('Negotiation request submitted!');
       setNegForm({ customer_comment: '', counter_discount_pct: '', requested_delivery_date: '' });
       setShowNegForm(false);
       viewQuote(selected);
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to submit negotiation request'); }
   };
 
   const [confirmDate, setConfirmDate] = useState('');
   const [showConfirmPanel, setShowConfirmPanel] = useState(false);
 
   const confirmQuote = async () => {
+    if (confirmDate) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (confirmDate < today) {
+        return toast.error('Promised delivery date cannot be in the past');
+      }
+    }
     try {
       await api.post(`/portal/quotations/${selected.id}/confirm`, { promised_delivery_date: confirmDate || null });
       toast.success('Quotation confirmed!');

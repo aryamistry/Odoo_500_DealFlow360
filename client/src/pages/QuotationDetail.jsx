@@ -48,42 +48,55 @@ export default function QuotationDetail() {
   }, [id]);
 
   const addLine = async () => {
-    if (!addForm.product_id) return toast.error('Select a product');
+    if (!addForm.product_id) return toast.error('Please select a product');
+    const qty = parseInt(addForm.quantity, 10);
+    if (isNaN(qty) || qty <= 0) return toast.error('Quantity must be greater than 0');
+    const disc = parseFloat(addForm.discount_pct);
+    if (isNaN(disc) || disc < 0 || disc > 100) return toast.error('Discount must be between 0% and 100%');
+
     try {
       await api.post(`/quotations/${id}/lines`, {
-        product_id: parseInt(addForm.product_id),
-        quantity: parseInt(addForm.quantity),
-        discount_pct: parseFloat(addForm.discount_pct),
+        product_id: parseInt(addForm.product_id, 10),
+        quantity: qty,
+        discount_pct: disc,
       });
       toast.success('Line added');
       setAddForm({ product_id: '', quantity: 1, discount_pct: 0 });
       fetchAll();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to add line'); }
   };
 
   const removeLine = async (lineId) => {
-    if (!confirm('Remove this line?')) return;
+    if (!confirm('Remove this line from the quotation?')) return;
     try {
       await api.delete(`/quotations/${id}/lines/${lineId}`);
       toast.success('Line removed');
       fetchAll();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to remove line'); }
   };
 
   const updateLine = async (lineId, field, value) => {
+    const num = parseFloat(value);
+    if (isNaN(num)) return toast.error('Please enter a valid number');
+    if (field === 'quantity' && num <= 0) return toast.error('Quantity must be greater than 0');
+    if (field === 'discount_pct' && (num < 0 || num > 100)) return toast.error('Discount must be between 0% and 100%');
+
     try {
-      await api.patch(`/quotations/${id}/lines/${lineId}`, { [field]: parseFloat(value) });
+      await api.patch(`/quotations/${id}/lines/${lineId}`, { [field]: num });
       fetchAll();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update line'); }
   };
 
   const submitQuote = async () => {
-    if (!confirm('Submit this quotation for approval?')) return;
+    if (!q.lines || q.lines.length === 0) {
+      return toast.error('Cannot submit an empty quotation. Please add at least one line item.');
+    }
+    if (!confirm('Submit this quotation for discount governance approval?')) return;
     try {
       const r = await api.post(`/quotations/${id}/submit`);
       toast.success(`Submitted! Risk: ${r.data.risk_level}, Status: ${r.data.newStatus}`);
       fetchAll();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to submit quotation'); }
   };
 
   const acceptUpsell = async (suggested_product_id) => {

@@ -67,19 +67,27 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!email || !password) {
-      return toast.error('Please enter both email and password');
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      return toast.error('Please enter your email address');
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return toast.error('Please enter a valid email address (e.g. user@dealflow.com)');
+    }
+    if (!password) {
+      return toast.error('Please enter your password');
     }
 
     setLoading(true);
     try {
       // Calls unified POST /auth/login — backend inspects credentials and returns role
-      const authenticatedUser = await login(email, password);
+      const authenticatedUser = await login(cleanEmail, password);
       const destination = getDestinationForRole(authenticatedUser);
       toast.success(`Welcome, ${authenticatedUser.name || authenticatedUser.companyName || 'User'}!`);
       navigate(destination);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Invalid credentials');
+      toast.error(err.response?.data?.error || 'Invalid email or password');
     } finally {
       setLoading(false);
     }

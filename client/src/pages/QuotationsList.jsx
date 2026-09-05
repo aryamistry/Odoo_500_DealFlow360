@@ -88,15 +88,24 @@ export default function QuotationsList() {
 
   const handleCreateCustomerInline = async (e) => {
     if (e) e.preventDefault();
-    if (!newCustForm.company_name.trim()) return toast.error('Company name required');
-    if (!newCustForm.email.trim()) return toast.error('Email required');
-    if (!newCustForm.tier) return toast.error('Tier required');
+    const name = newCustForm.company_name.trim();
+    if (!name) return toast.error('Company name is required');
+    if (name.length < 2) return toast.error('Company name must be at least 2 characters');
+
+    const email = newCustForm.email.trim();
+    if (!email) return toast.error('Email is required');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return toast.error('Please enter a valid email address');
+    if (!newCustForm.tier) return toast.error('Please select a customer tier');
+    if (newCustForm.password && newCustForm.password.length < 6) {
+      return toast.error('Portal password must be at least 6 characters long');
+    }
 
     setSubmittingCust(true);
     try {
       const payload = {
-        company_name: newCustForm.company_name.trim(),
-        email: newCustForm.email.trim(),
+        company_name: name,
+        email: email,
         tier: newCustForm.tier,
       };
       if (newCustForm.password) payload.password = newCustForm.password;
@@ -118,13 +127,13 @@ export default function QuotationsList() {
   };
 
   const createQuote = async () => {
-    if (!newCustomerId) return toast.error('Select a customer');
+    if (!newCustomerId) return toast.error('Please select a customer first');
     try {
-      const r = await api.post('/quotations', { customer_id: parseInt(newCustomerId) });
+      const r = await api.post('/quotations', { customer_id: parseInt(newCustomerId, 10) });
       toast.success('Quotation created');
       navigate(`/quotations/${r.data.id}`);
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Failed');
+      toast.error(e.response?.data?.error || 'Failed to create quotation');
     }
   };
 

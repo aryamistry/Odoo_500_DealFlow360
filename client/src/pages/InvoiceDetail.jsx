@@ -16,13 +16,19 @@ export default function InvoiceDetail() {
   useEffect(() => { fetchData(); }, [id]);
 
   const recordPayment = async () => {
-    if (!payAmount || parseFloat(payAmount) <= 0) return toast.error('Enter a valid amount');
+    const val = parseFloat(payAmount);
+    if (isNaN(val) || val <= 0) {
+      return toast.error('Please enter a valid positive payment amount');
+    }
+    if (val > outstanding + 0.001) {
+      return toast.error(`Payment amount cannot exceed outstanding balance of ₹${outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
+    }
     try {
-      const r = await api.post(`/billing/invoices/${id}/pay`, { amount: parseFloat(payAmount) });
+      const r = await api.post(`/billing/invoices/${id}/pay`, { amount: val });
       toast.success(`Payment recorded! Status: ${r.data.status}`);
       setPayAmount('');
       fetchData();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to record payment'); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64 text-slate-400">Loading...</div>;
