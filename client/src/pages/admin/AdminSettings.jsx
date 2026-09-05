@@ -593,33 +593,145 @@ function WarehousesTab() {
 // ── Subscription Plans ────────────────────────────────────────────────────────
 function SubPlansTab() {
   const [plans, setPlans] = useState([]);
-  const [form, setForm] = useState({ name: '', billing_cycle: 'monthly', proration_rule: '', cancellation_rule: '', refund_rule: '' });
+  const [form, setForm] = useState({
+    name: '',
+    billing_cycle: 'monthly',
+    proration_rule: 'prorated',
+    cancellation_rule: 'end_of_cycle',
+    refund_rule: 'none',
+  });
   const load = () => api.get('/admin/subscription-plans').then(r => setPlans(r.data));
   useEffect(() => { load(); }, []);
 
   const create = async () => {
-    try { await api.post('/admin/subscription-plans', form); toast.success('Created'); load(); }
-    catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    if (!form.name.trim()) return toast.error('Plan name is required');
+    try {
+      await api.post('/admin/subscription-plans', form);
+      toast.success('Subscription plan created');
+      setForm({
+        name: '',
+        billing_cycle: 'monthly',
+        proration_rule: 'prorated',
+        cancellation_rule: 'end_of_cycle',
+        refund_rule: 'none',
+      });
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to create plan');
+    }
   };
 
   return (
     <div>
       <div className="card mb-6 space-y-3">
-        <h3 className="font-semibold">New Plan</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="form-group"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} /></div>
-          <div className="form-group"><label className="label">Billing Cycle</label>
-            <select className="select" value={form.billing_cycle} onChange={e => setForm(f => ({...f, billing_cycle: e.target.value}))}>
-              <option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option>
+        <h3 className="font-semibold text-slate-200">New Subscription Plan</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="form-group">
+            <label className="label">Plan Name</label>
+            <input
+              className="input"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Enterprise Cloud Suite"
+            />
+          </div>
+          <div className="form-group">
+            <label className="label">Billing Cycle</label>
+            <select
+              className="select"
+              value={form.billing_cycle}
+              onChange={e => setForm(f => ({ ...f, billing_cycle: e.target.value }))}
+            >
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
             </select>
           </div>
-          <div className="form-group col-span-2"><label className="label">Proration Rule</label><input className="input" value={form.proration_rule} onChange={e => setForm(f => ({...f, proration_rule: e.target.value}))} /></div>
-          <div className="form-group col-span-2"><label className="label">Cancellation Rule</label><input className="input" value={form.cancellation_rule} onChange={e => setForm(f => ({...f, cancellation_rule: e.target.value}))} /></div>
+          <div className="form-group">
+            <label className="label">Proration Rule</label>
+            <select
+              className="select"
+              value={form.proration_rule}
+              onChange={e => setForm(f => ({ ...f, proration_rule: e.target.value }))}
+            >
+              <option value="prorated">Prorated</option>
+              <option value="full_charge">Full Charge</option>
+              <option value="no_proration">No Proration</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="label">Cancellation Rule</label>
+            <select
+              className="select"
+              value={form.cancellation_rule}
+              onChange={e => setForm(f => ({ ...f, cancellation_rule: e.target.value }))}
+            >
+              <option value="end_of_cycle">End of Cycle</option>
+              <option value="immediate">Immediate</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="label">Refund Rule</label>
+            <select
+              className="select"
+              value={form.refund_rule}
+              onChange={e => setForm(f => ({ ...f, refund_rule: e.target.value }))}
+            >
+              <option value="none">No Refund</option>
+              <option value="prorated">Prorated Refund</option>
+              <option value="full">Full Refund</option>
+            </select>
+          </div>
         </div>
-        <button onClick={create} className="btn-primary">Create Plan</button>
+        <button onClick={create} className="btn-primary mt-2">
+          Create Plan
+        </button>
       </div>
-      <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Cycle</th><th>Proration</th></tr></thead>
-      <tbody>{plans.map(p => <tr key={p.id}><td className="font-medium">{p.name}</td><td className="capitalize">{p.billing_cycle}</td><td className="text-slate-400 text-xs">{p.proration_rule}</td></tr>)}</tbody></table></div>
+
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Billing Cycle</th>
+              <th>Proration Rule</th>
+              <th>Cancellation Rule</th>
+              <th>Refund Rule</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plans.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="text-center py-6 text-slate-500">
+                  No subscription plans found.
+                </td>
+              </tr>
+            ) : (
+              plans.map(p => (
+                <tr key={p.id}>
+                  <td className="font-medium text-slate-200">{p.name}</td>
+                  <td className="capitalize">{p.billing_cycle}</td>
+                  <td>
+                    <span className="badge badge-info uppercase text-[10px] tracking-wide">
+                      {p.proration_rule ? p.proration_rule.replace('_', ' ') : 'prorated'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badge badge-warning uppercase text-[10px] tracking-wide">
+                      {p.cancellation_rule ? p.cancellation_rule.replace('_', ' ') : 'end of cycle'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="badge badge-purple uppercase text-[10px] tracking-wide">
+                      {p.refund_rule ? p.refund_rule.replace('_', ' ') : 'none'}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -37,7 +37,22 @@ const pool = require('./server/src/db');
         (type = 'credit_note' AND (subscription_id IS NOT NULL OR invoice_id IS NOT NULL))
       );
     `);
-    console.log('✅ payment_transactions_check constraint updated');
+    // Subscription Rules Validation Constraints (§1 of Subscription_Rules_Implementation_Steps.md)
+    await pool.query(`
+      UPDATE subscription_plans SET proration_rule = 'prorated' WHERE proration_rule NOT IN ('prorated','full_charge','no_proration') OR proration_rule IS NULL;
+      UPDATE subscription_plans SET cancellation_rule = 'end_of_cycle' WHERE cancellation_rule NOT IN ('immediate','end_of_cycle') OR cancellation_rule IS NULL;
+      UPDATE subscription_plans SET refund_rule = 'none' WHERE refund_rule NOT IN ('full','prorated','none') OR refund_rule IS NULL;
+
+      ALTER TABLE subscription_plans DROP CONSTRAINT IF EXISTS proration_rule_valid;
+      ALTER TABLE subscription_plans ADD CONSTRAINT proration_rule_valid CHECK (proration_rule IN ('prorated', 'full_charge', 'no_proration'));
+
+      ALTER TABLE subscription_plans DROP CONSTRAINT IF EXISTS cancellation_rule_valid;
+      ALTER TABLE subscription_plans ADD CONSTRAINT cancellation_rule_valid CHECK (cancellation_rule IN ('immediate', 'end_of_cycle'));
+
+      ALTER TABLE subscription_plans DROP CONSTRAINT IF EXISTS refund_rule_valid;
+      ALTER TABLE subscription_plans ADD CONSTRAINT refund_rule_valid CHECK (refund_rule IN ('full', 'prorated', 'none'));
+    `);
+    console.log('✅ subscription_plans constraints (proration_rule_valid, cancellation_rule_valid, refund_rule_valid) applied');
 
     console.log('\n🎉 All migrations applied successfully!');
   } catch (err) {

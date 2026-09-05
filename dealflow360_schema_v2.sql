@@ -68,9 +68,9 @@ CREATE TABLE subscription_plans (
     id                  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     name                VARCHAR(120) NOT NULL,
     billing_cycle       billing_cycle NOT NULL,
-    proration_rule      TEXT,
-    cancellation_rule   TEXT,
-    refund_rule         TEXT
+    proration_rule      TEXT DEFAULT 'prorated' CHECK (proration_rule IN ('prorated', 'full_charge', 'no_proration')),
+    cancellation_rule   TEXT DEFAULT 'end_of_cycle' CHECK (cancellation_rule IN ('immediate', 'end_of_cycle')),
+    refund_rule         TEXT DEFAULT 'none' CHECK (refund_rule IN ('full', 'prorated', 'none'))
 );
 
 -- ----------------------------------------------------------------------------
