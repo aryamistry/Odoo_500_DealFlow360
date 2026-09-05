@@ -86,7 +86,11 @@ function CustomerForm({ tiers, onSave, onCancel, initial = null }) {
 export default function Customers() {
   const { user } = useAuth();
   const [customers, setCustomers] = useState([]);
-  const [tiers, setTiers] = useState([]);
+  const tiers = [
+    { tier: 'Gold', max_discount_pct: 20 },
+    { tier: 'Silver', max_discount_pct: 10 },
+    { tier: 'Bronze', max_discount_pct: 5 },
+  ];
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -103,7 +107,6 @@ export default function Customers() {
 
   useEffect(() => {
     load();
-    api.get('/admin/customer-tiers').then(r => setTiers(r.data)).catch(() => {});
   }, []);
 
   const handleCreated = (newCustomer) => {
