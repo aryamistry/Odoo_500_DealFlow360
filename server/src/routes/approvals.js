@@ -196,7 +196,9 @@ router.post('/negotiations/:negotiationId/resolve', requireRole('sales_rep', 'sa
     // Re-run governance after commit so evaluateRisk sees the updated discount_pct on quotation_lines
     const govResult = await reEvaluateAfterNegotiation(neg.quotation_id, req.user.id);
 
-    res.json({ message: 'Resolved', governance: govResult });
+    const { rows: [updatedQuote] } = await pool.query('SELECT * FROM quotations WHERE id=$1', [neg.quotation_id]);
+
+    res.json({ message: 'Resolved', quotation: updatedQuote, governance: govResult });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err); res.status(500).json({ error: err.message });
