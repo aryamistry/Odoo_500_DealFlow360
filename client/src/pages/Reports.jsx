@@ -23,9 +23,34 @@ export default function Reports() {
   const totalMargin = data.reduce((s, r) => s + parseFloat(r.total_margin || 0), 0);
   const totalQuotes = data.reduce((s, r) => s + parseInt(r.quote_count || 0), 0);
 
+  const exportCSV = () => {
+    if (data.length === 0) return toast.error('No data to export');
+    const headers = ['Status', 'Risk Level', 'Quote Count', 'Total Revenue', 'Total Margin', 'Avg Discount %'];
+    const rows = data.map(r => [
+      r.status,
+      r.risk_level || '',
+      r.quote_count,
+      parseFloat(r.total_revenue || 0).toFixed(2),
+      parseFloat(r.total_margin || 0).toFixed(2),
+      parseFloat(r.avg_discount_pct || 0).toFixed(2),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dealflow360_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('CSV exported');
+  };
+
   return (
     <div>
-      <div className="page-header"><h1 className="page-title">Reports</h1></div>
+      <div className="page-header">
+        <h1 className="page-title">Reports</h1>
+        <button onClick={exportCSV} className="btn-secondary">⬇ Export CSV</button>
+      </div>
 
       {/* Filters */}
       <div className="card mb-6 flex gap-4 items-end flex-wrap">

@@ -12,6 +12,7 @@ import ApprovalDetail from './pages/ApprovalDetail';
 import FulfillmentList from './pages/FulfillmentList';
 import FulfillmentDetail from './pages/FulfillmentDetail';
 import SubscriptionsList from './pages/SubscriptionsList';
+import SubscriptionDetail from './pages/SubscriptionDetail';
 import InvoicesList from './pages/InvoicesList';
 import InvoiceDetail from './pages/InvoiceDetail';
 import DealHealth from './pages/DealHealth';
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="fulfillment" element={<FulfillmentList />} />
         <Route path="fulfillment/:id" element={<FulfillmentDetail />} />
         <Route path="subscriptions" element={<SubscriptionsList />} />
+        <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
         <Route path="invoices" element={<InvoicesList />} />
         <Route path="invoices/:id" element={<InvoiceDetail />} />
         <Route path="deal-health" element={<DealHealth />} />

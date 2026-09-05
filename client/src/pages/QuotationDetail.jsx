@@ -94,11 +94,24 @@ export default function QuotationDetail() {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
+  const resolveNegotiation = async (negotiationId, acceptCounterDiscount) => {
+    const action = acceptCounterDiscount ? 'accept the counter-discount' : 'resolve without discount change';
+    if (!confirm(`Are you sure you want to ${action}?`)) return;
+    try {
+      const r = await api.post(`/approvals/negotiations/${negotiationId}/resolve`, { accept_counter_discount: acceptCounterDiscount });
+      toast.success(`Negotiation resolved. Risk: ${r.data.governance?.risk_level}`);
+      fetchAll();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+  };
+
+
   if (loading) return <div className="flex items-center justify-center h-64 text-slate-400">Loading...</div>;
   if (!q) return <div className="text-red-400">Quotation not found</div>;
 
   const isDraft = q.status === 'draft';
+  const isUnderNegotiation = q.status === 'under_negotiation';
   const canEdit = isDraft && (user?.role !== 'finance');
+  const canResolve = isUnderNegotiation && ['sales_rep', 'sales_manager', 'admin'].includes(user?.role);
 
   return (
     <div className="grid grid-cols-3 gap-6">
@@ -295,7 +308,43 @@ export default function QuotationDetail() {
             ))}
           </div>
         )}
+
+        {/* Negotiation Resolution Panel */}
+        {canResolve && q.negotiations?.filter(n => n.status === 'pending').map(neg => (
+          <div key={neg.id} className="card border border-amber-700/40">
+            <h2 className="font-semibold text-amber-400 mb-3">🤝 Pending Negotiation</h2>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Customer Message</p>
+                <p className="text-sm text-slate-200">{neg.customer_comment}</p>
+              </div>
+              {neg.counter_discount_pct && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Counter-Discount Requested</p>
+                  <p className="text-lg font-semibold text-amber-400">{neg.counter_discount_pct}%</p>
+                </div>
+              )}
+              {neg.requested_delivery_date && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Requested Delivery</p>
+                  <p className="text-sm text-slate-300">{neg.requested_delivery_date}</p>
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-800 flex flex-col gap-2">
+                {neg.counter_discount_pct && (
+                  <button onClick={() => resolveNegotiation(neg.id, true)} className="btn-success btn-sm w-full">
+                    ✓ Accept Counter-Discount ({neg.counter_discount_pct}%)
+                  </button>
+                )}
+                <button onClick={() => resolveNegotiation(neg.id, false)} className="btn-secondary btn-sm w-full">
+                  Resolve (no discount change)
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
+

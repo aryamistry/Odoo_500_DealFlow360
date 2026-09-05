@@ -16,9 +16,14 @@ async function splitFulfillment(quotationId) {
   try {
     await client.query('BEGIN');
 
-    // Get all lines for this quotation
+    // Get only physical (non-subscription) lines for this quotation.
+    // Subscription-linked products are digital and must NOT enter warehouse stock or backorder flows.
     const { rows: lines } = await client.query(
-      'SELECT id, product_id, quantity FROM quotation_lines WHERE quotation_id=$1',
+      `SELECT ql.id, ql.product_id, ql.quantity
+       FROM quotation_lines ql
+       JOIN products p ON p.id = ql.product_id
+       WHERE ql.quotation_id = $1
+         AND p.subscription_plan_id IS NULL`,
       [quotationId]
     );
 

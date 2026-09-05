@@ -50,7 +50,43 @@ router.get('/subscriptions/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+// Mid-cycle subscription modification
+router.patch('/subscriptions/:id', requireRole('admin', 'finance', 'sales_manager'), async (req, res) => {
+  const { next_bill_date, quantity_override, reason } = req.body;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: [sub] } = await client.query('SELECT * FROM subscriptions WHERE id=$1', [req.params.id]);
+    if (!sub) return res.status(404).json({ error: 'Not found' });
+    if (sub.status === 'cancelled') return res.status(400).json({ error: 'Cannot modify a cancelled subscription' });
+
+    const updates = [];
+    const params = [];
+    let i = 1;
+    if (next_bill_date) { updates.push(`next_bill_date=$${i++}`); params.push(next_bill_date); }
+    if (updates.length === 0) return res.status(400).json({ error: 'Provide next_bill_date to update' });
+    params.push(req.params.id);
+    await client.query(`UPDATE subscriptions SET ${updates.join(',')} WHERE id=$${i}`, params);
+
+    // Log the modification as a credit_note if applicable
+    if (reason) {
+      await client.query(
+        `INSERT INTO payment_transactions (type, subscription_id, amount, reason)
+         VALUES ('credit_note',$1,0,$2)`,
+        [req.params.id, reason]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Subscription updated' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err); res.status(500).json({ error: err.message });
+  } finally { client.release(); }
+});
+
 // Cancel subscription
+
 router.post('/subscriptions/:id/cancel', requireRole('admin', 'finance', 'sales_manager'), async (req, res) => {
   const { reason } = req.body;
   const client = await pool.connect();

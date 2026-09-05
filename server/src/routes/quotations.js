@@ -148,7 +148,13 @@ router.get('/:id', async (req, res) => {
     totals.margin = totals.revenue - totals.cost;
     totals.marginPct = totals.revenue > 0 ? (totals.margin / totals.revenue) * 100 : 0;
 
-    res.json({ ...q, lines, activity, steps, totals });
+    // Negotiation requests
+    const { rows: negotiations } = await pool.query(
+      'SELECT * FROM negotiation_requests WHERE quotation_id=$1 ORDER BY created_at DESC',
+      [req.params.id]
+    );
+
+    res.json({ ...q, lines, activity, steps, totals, negotiations });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 

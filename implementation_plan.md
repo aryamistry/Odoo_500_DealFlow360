@@ -155,6 +155,7 @@ These rules apply to **every phase** in this project and must be respected by al
 ### Phase 6 — Fulfillment & Warehouse Split ✅
 - [x] `server/src/services/fulfillment.js`:
   - `splitFulfillment(quotationId)` — greedy multi-warehouse split algorithm minimizing shipments, auto-detects backorders, decrements `warehouse_stock`
+  - Filtered out digital subscription items (`p.subscription_plan_id IS NULL`) so subscriptions never create phantom warehouse stock demands or backorders
 - [x] `server/src/routes/fulfillment.js`:
   - `GET /api/fulfillment` — list quotes requiring fulfillment with fulfillment status
   - `GET /api/fulfillment/:quotationId` — breakdown of warehouse allocations, allocated quantities, and backorder flags
@@ -169,10 +170,12 @@ These rules apply to **every phase** in this project and must be respected by al
   - `createInvoices(quotationId)` — splits one-time purchases and recurring subscription lines into separate invoices, initializes `subscriptions` records
 - [x] `server/src/routes/billing.js`:
   - `GET /api/subscriptions` — list active subscriptions
-  - `GET /api/subscriptions/:id` — subscription detail
-  - `PATCH /api/subscriptions/:id` — mid-cycle subscription edits
+  - `GET /api/subscriptions/:id` — subscription detail with associated invoices and credit ledger
+  - `PATCH /api/subscriptions/:id` — mid-cycle subscription edits (reschedule next bill date, pro-rated credit notes)
   - `POST /api/subscriptions/:id/cancel` — subscription cancellation with credit note options
-- [x] `client/src/pages/SubscriptionsList.jsx` — active subscription tracker with recurring cycle details
+- [x] `client/src/pages/SubscriptionsList.jsx` — active subscription tracker with recurring cycle details and deep-links to detail view
+- [x] `client/src/pages/SubscriptionDetail.jsx` — full subscription management view with mid-cycle adjustment controls and cancellation modal
+- [x] `client/src/App.jsx` — configured `/subscriptions/:id` route for subscription lifecycle management
 
 ---
 
@@ -194,7 +197,10 @@ These rules apply to **every phase** in this project and must be respected by al
   - `POST /api/portal/quotations/:id/confirm` — accepts quote, sets status to `confirmed`, triggers fulfillment split and billing generation
 - [x] `server/src/routes/approvals.js`:
   - `POST /api/negotiations/:id/resolve` — sales rep resolves customer negotiation; automatically re-evaluates risk and triggers reapproval if ceiling breached
+- [x] `server/src/routes/quotations.js`:
+  - Enriched `GET /api/quotations/:id` with `negotiations` history for rep visibility
 - [x] `client/src/pages/Portal.jsx` — dedicated 2-panel customer portal for review, counter-offers, and instant order confirmation
+- [x] `client/src/pages/QuotationDetail.jsx` — sales rep negotiation resolution card with Accept Counter-Discount and manual resolution actions
 
 ---
 
@@ -208,7 +214,7 @@ These rules apply to **every phase** in this project and must be respected by al
   - `GET /api/reports` — aggregates deals, revenue, average discounts, and margin by period/rep/category
   - `GET /api/deal-health/summary` — summary metrics for executive dashboard
 - [x] `client/src/pages/DealHealth.jsx` — real-time health radar with actionable Escalate and Nudge workflows
-- [x] `client/src/pages/Reports.jsx` — interactive analytics suite with dynamic Recharts visualization and CSV data export
+- [x] `client/src/pages/Reports.jsx` — interactive analytics suite with dynamic Recharts visualization and client-side CSV data export download button
 
 ---
 
