@@ -25,7 +25,7 @@
 
 ## Resolved Decisions & Setup Details
 
-- **Database:** PostgreSQL at `postgresql://postgres:root@localhost:5432/dealflow360` (verified & successfully seeded).
+- **Database:** PostgreSQL at `postgresql://postgres:enterpassword@localhost:5432/dealflow360` (verified & successfully seeded).
 - **Backend Port:** `http://localhost:5000` (Express dev server running).
 - **Frontend Port:** `http://localhost:5173` (Vite dev server running with `/api` proxy).
 - **Authentication:** JWT in httpOnly cookie (`token`), distinct payloads for internal users (`{ id, name, email, role }`) and customer users (`{ customerId, email }`).
