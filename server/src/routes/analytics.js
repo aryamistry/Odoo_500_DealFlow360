@@ -141,12 +141,15 @@ router.get('/reports/filter-options', async (_req, res) => {
 router.get('/reports', async (req, res) => {
   try {
     const { from, to, rep_id, approval_status, category_id, status } = req.query;
+    if (from && to && new Date(from) > new Date(to)) {
+      return res.status(400).json({ error: 'From date must be before or equal to To date' });
+    }
     let where = [];
     let params = [];
     let i = 1;
 
     if (from) { where.push(`q.created_at >= $${i++}`); params.push(from); }
-    if (to) { where.push(`q.created_at <= $${i++}`); params.push(to); }
+    if (to) { where.push(`q.created_at < ($${i++}::date + INTERVAL '1 day')`); params.push(to); }
     if (rep_id) { where.push(`q.sales_rep_id = $${i++}`); params.push(rep_id); }
     if (status) { where.push(`q.status = $${i++}::quotation_status`); params.push(status); }
     if (category_id) { where.push(`p.category_id = $${i++}`); params.push(category_id); }

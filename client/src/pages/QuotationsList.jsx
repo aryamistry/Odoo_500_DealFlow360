@@ -26,6 +26,8 @@ export default function QuotationsList() {
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [customers, setCustomers] = useState([]);
   const [creating, setCreating] = useState(searchParams.get('new') === 'true');
   const [newCustomerId, setNewCustomerId] = useState('');
@@ -43,6 +45,7 @@ export default function QuotationsList() {
     setLoading(true);
     const params = { page, limit };
     if (status) params.status = status;
+    if (search) params.search = search;
     api.get('/quotations', { params })
       .then(r => {
         // Backend returns { data, total, page, totalPages } when page param is sent
@@ -60,7 +63,13 @@ export default function QuotationsList() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchQuotes(); }, [status, page, limit]);
+  useEffect(() => { fetchQuotes(); }, [status, page, limit, search]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
 
   // Reset to page 1 when filters change
   const handleStatusChange = (s) => { setStatus(s); setPage(1); };
@@ -244,6 +253,21 @@ export default function QuotationsList() {
       )}
 
       {/* Filters */}
+      <form onSubmit={handleSearch} className="flex gap-3 mb-4 flex-wrap items-center">
+        <input
+          className="input flex-1 max-w-xs"
+          placeholder="Search by quote number or customer…"
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+        />
+        <button type="submit" className="btn-secondary btn-sm">Search</button>
+        {(search || status) && (
+          <button type="button" className="btn-secondary btn-sm" onClick={() => { setSearch(''); setSearchInput(''); setStatus(''); setPage(1); }}>
+            Clear
+          </button>
+        )}
+      </form>
+
       <div className="flex gap-2 mb-4 flex-wrap">
         {STATUSES.map(s => (
           <button

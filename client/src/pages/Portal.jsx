@@ -36,12 +36,15 @@ export default function Portal() {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
+  const [confirmDate, setConfirmDate] = useState('');
+  const [showConfirmPanel, setShowConfirmPanel] = useState(false);
+
   const confirmQuote = async () => {
-    if (!confirm('Confirm this quotation?')) return;
-    const date = prompt('Promised delivery date (YYYY-MM-DD):', '');
     try {
-      await api.post(`/portal/quotations/${selected.id}/confirm`, { promised_delivery_date: date });
+      await api.post(`/portal/quotations/${selected.id}/confirm`, { promised_delivery_date: confirmDate || null });
       toast.success('Quotation confirmed!');
+      setShowConfirmPanel(false);
+      setConfirmDate('');
       viewQuote(selected);
     } catch (e) { toast.error(e.response?.data?.error || 'Confirm failed — quotation may not be in approved state'); }
   };
@@ -92,13 +95,32 @@ export default function Portal() {
                 </div>
                 <div className="flex gap-3">
                   {selected.status === 'approved' && (
-                    <button onClick={confirmQuote} className="btn-success">Confirm Order</button>
+                    <button onClick={() => setShowConfirmPanel(!showConfirmPanel)} className="btn-success">Confirm Order</button>
                   )}
                   {['approved','under_negotiation'].includes(selected.status) && (
                     <button onClick={() => setShowNegForm(!showNegForm)} className="btn-secondary">Request Changes</button>
                   )}
                 </div>
               </div>
+
+              {/* Confirm Order panel — replaces window.prompt */}
+              {showConfirmPanel && (
+                <div className="card">
+                  <h3 className="font-semibold mb-4">Confirm Order</h3>
+                  <div className="space-y-4">
+                    <div className="form-group">
+                      <label className="label">Promised Delivery Date (optional)</label>
+                      <input type="date" className="input"
+                        min={new Date().toISOString().slice(0, 10)}
+                        value={confirmDate} onChange={e => setConfirmDate(e.target.value)} />
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={confirmQuote} className="btn-success">Confirm</button>
+                      <button onClick={() => { setShowConfirmPanel(false); setConfirmDate(''); }} className="btn-secondary">Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Lines */}
               <div className="card">

@@ -142,7 +142,14 @@ router.patch('/subscriptions/:id', requireRole('admin', 'finance', 'sales_manage
       params.push(newQty);
     }
 
-    if (next_bill_date) { updates.push(`next_bill_date=$${i++}`); params.push(next_bill_date); }
+    if (next_bill_date) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (next_bill_date < today) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Next bill date cannot be in the past' });
+      }
+      updates.push(`next_bill_date=$${i++}`); params.push(next_bill_date);
+    }
 
     if (updates.length === 0) {
       await client.query('ROLLBACK');

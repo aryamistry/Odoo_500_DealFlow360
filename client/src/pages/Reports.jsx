@@ -18,6 +18,10 @@ export default function Reports() {
   };
 
   const fetchReport = () => {
+    if (filters.from && filters.to && filters.from > filters.to) {
+      toast.error('From date must be before or equal to To date');
+      return;
+    }
     setLoading(true);
     const params = {};
     Object.keys(filters).forEach(k => {
@@ -112,7 +116,7 @@ export default function Reports() {
           <label className="label">Status</label>
           <select className="select" value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))}>
             <option value="">All statuses</option>
-            {['draft','pending_approval','approved','confirmed','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+            {['draft','pending_approval','approved','under_negotiation','confirmed','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div className="form-group">

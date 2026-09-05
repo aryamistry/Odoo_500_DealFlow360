@@ -33,7 +33,7 @@ async function computeUnitPrice(productId, variantId, priceListId) {
 // ── Quotation List ────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
-    const { status, rep_id, customer_id } = req.query;
+    const { status, rep_id, customer_id, search } = req.query;
     const { page, limit, offset, isPaginated } = getPaginationParams(req);
 
     let where = [];
@@ -43,6 +43,7 @@ router.get('/', async (req, res) => {
     if (status) { where.push(`q.status = $${i++}::quotation_status`); params.push(status); }
     if (rep_id) { where.push(`q.sales_rep_id = $${i++}`); params.push(rep_id); }
     if (customer_id) { where.push(`q.customer_id = $${i++}`); params.push(customer_id); }
+    if (search) { where.push(`(q.quote_number ILIKE $${i} OR c.company_name ILIKE $${i})`); params.push(`%${search}%`); i++; }
 
     // Reps see only their own quotes
     if (req.user.role === 'sales_rep') {

@@ -125,6 +125,7 @@ export default function SubscriptionDetail() {
             <div className="form-group">
               <label className="label">New Next Bill Date *</label>
               <input type="date" className="input" value={modifyForm.next_bill_date}
+                min={new Date().toISOString().slice(0, 10)}
                 onChange={e => setModifyForm(f => ({ ...f, next_bill_date: e.target.value }))} />
             </div>
             <div className="form-group">
