@@ -175,14 +175,14 @@ export default function QuotationsList() {
             <div className="mt-4 pt-4 border-t border-slate-800 bg-slate-950/60 p-4 rounded-lg border border-slate-700/60 animate-fadeIn">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2">
-                  <span>ðŸ‘¤</span> Quick Add Customer
+                  <span>👤</span> Quick Add Customer
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowNewCustModal(false)}
                   className="text-slate-400 hover:text-slate-200 text-sm"
                 >
-                  âœ•
+                  ✕
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -244,7 +244,7 @@ export default function QuotationsList() {
                   onClick={handleCreateCustomerInline}
                   className="btn-primary btn-sm"
                 >
-                  {submittingCust ? 'Creatingâ€¦' : 'Create & Select Customer'}
+                  {submittingCust ? 'Creating...' : 'Create & Select Customer'}
                 </button>
               </div>
             </div>
@@ -305,7 +305,7 @@ export default function QuotationsList() {
                 <td>{q.customer_name}</td>
                 <td className="text-slate-400">{q.rep_name}</td>
                 <td className="text-slate-400">{q.line_count}</td>
-                <td className="font-mono text-sm">â‚¹{parseFloat(q.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                <td className="font-mono text-sm">₹{parseFloat(q.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                 <td><StatusBadge status={q.status} /></td>
                 <td>{q.risk_level && <span className={`badge badge-${q.risk_level}`}>{q.risk_level}</span>}</td>
                 <td className="text-slate-500 text-xs">{new Date(q.updated_at).toLocaleDateString()}</td>

@@ -7,7 +7,20 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
-router.use(['/analytics', '/deal-health', '/reports'], authenticate, requireRole('admin', 'sales_manager', 'finance'));
+router.use(authenticate);
+
+// Executive deal health and deep analytics: admin, sales_manager, finance
+router.use([
+  '/analytics',
+  '/deal-health/stalled',
+  '/deal-health/discount-anomalies',
+  '/deal-health/delivery-slippage',
+  '/deal-health/escalate',
+  '/deal-health/nudge'
+], requireRole('admin', 'sales_manager', 'finance'));
+
+// Summary metrics (Dashboard) & reports: all internal roles (rep, manager, finance, admin)
+router.use(['/reports', '/deal-health/summary'], requireRole('admin', 'sales_manager', 'sales_rep', 'finance'));
 
 // ── Stalled Deals ─────────────────────────────────────────────────────────────
 router.get('/deal-health/stalled', async (_req, res) => {
