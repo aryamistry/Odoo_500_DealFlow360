@@ -50,6 +50,7 @@ function AppRoutes() {
       }>
         <Route index element={<Dashboard />} />
         <Route path="quotations" element={<QuotationsList />} />
+        <Route path="quotations/new" element={<Navigate to="/quotations?new=true" replace />} />
         <Route path="quotations/:id" element={<QuotationDetail />} />
         <Route path="approvals" element={<ApprovalsList />} />
         <Route path="approvals/:id" element={<ApprovalDetail />} />
@@ -69,7 +70,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Toaster position="top-right" toastOptions={{ className: 'bg-slate-800 text-white border border-slate-700' }} />
         <AppRoutes />
       </BrowserRouter>

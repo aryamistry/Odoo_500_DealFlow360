@@ -41,7 +41,7 @@ export default function Dashboard() {
           <p className="page-subtitle">Welcome back, {user?.name}</p>
         </div>
         {(user?.role === 'sales_rep' || user?.role === 'admin') && (
-          <Link to="/quotations/new" className="btn-primary">+ New Quotation</Link>
+          <Link to="/quotations?new=true" className="btn-primary">+ New Quotation</Link>
         )}
       </div>
 

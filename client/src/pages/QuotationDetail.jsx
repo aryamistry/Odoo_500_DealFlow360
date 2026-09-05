@@ -39,7 +39,13 @@ export default function QuotationDetail() {
     .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchAll(); }, [id]);
+  useEffect(() => {
+    if (id === 'new' || isNaN(parseInt(id, 10))) {
+      navigate('/quotations?new=true', { replace: true });
+      return;
+    }
+    fetchAll();
+  }, [id]);
 
   const addLine = async () => {
     if (!addForm.product_id) return toast.error('Select a product');

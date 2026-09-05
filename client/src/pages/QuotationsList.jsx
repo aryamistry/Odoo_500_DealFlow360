@@ -1,6 +1,6 @@
 // src/pages/QuotationsList.jsx
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -18,11 +18,12 @@ function StatusBadge({ status }) {
 export default function QuotationsList() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [customers, setCustomers] = useState([]);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(searchParams.get('new') === 'true');
   const [newCustomerId, setNewCustomerId] = useState('');
 
   const fetchQuotes = () => {
