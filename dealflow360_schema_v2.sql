@@ -333,8 +333,8 @@ CREATE TABLE payment_transactions (
     reason          TEXT,                          -- used for credit_note; typically null for payment
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     CHECK (
-        (type = 'payment' AND invoice_id IS NOT NULL) OR
-        (type = 'credit_note' AND subscription_id IS NOT NULL)
+        (type = 'payment' AND (invoice_id IS NOT NULL OR subscription_id IS NOT NULL)) OR
+        (type = 'credit_note' AND (subscription_id IS NOT NULL OR invoice_id IS NOT NULL))
     )
 );
 CREATE INDEX idx_payment_transactions_invoice ON payment_transactions(invoice_id);

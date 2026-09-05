@@ -29,6 +29,16 @@ const pool = require('./server/src/db');
     `);
     console.log('✅ platform_settings seeded with stalled_deal_days=7');
 
+    // Update payment_transactions_check constraint to allow subscription_id or invoice_id for payments and credit notes
+    await pool.query(`
+      ALTER TABLE payment_transactions DROP CONSTRAINT IF EXISTS payment_transactions_check;
+      ALTER TABLE payment_transactions ADD CONSTRAINT payment_transactions_check CHECK (
+        (type = 'payment' AND (invoice_id IS NOT NULL OR subscription_id IS NOT NULL)) OR
+        (type = 'credit_note' AND (subscription_id IS NOT NULL OR invoice_id IS NOT NULL))
+      );
+    `);
+    console.log('✅ payment_transactions_check constraint updated');
+
     console.log('\n🎉 All migrations applied successfully!');
   } catch (err) {
     console.error('❌ Migration error:', err.message);
