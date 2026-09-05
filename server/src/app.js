@@ -1,0 +1,44 @@
+// src/app.js — Express application setup
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const cookieParser = require('cookie-parser');
+
+const app = express();
+
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  credentials: true,
+}));
+app.use(express.json());
+app.use(cookieParser());
+
+// ── Routes ──────────────────────────────────────────────────────────────────
+app.use('/api/auth',              require('./routes/auth'));
+app.use('/api/quotations',        require('./routes/quotations'));
+app.use('/api/approvals',         require('./routes/approvals'));
+app.use('/api/fulfillment',       require('./routes/fulfillment'));
+app.use('/api/billing',           require('./routes/billing'));
+app.use('/api/portal',            require('./routes/portal'));
+app.use('/api',                   require('./routes/analytics'));
+
+// Admin routes
+app.use('/api/admin/categories',         require('./routes/admin/categories'));
+app.use('/api/admin/customer-tiers',     require('./routes/admin/customer_tiers'));
+app.use('/api/admin/approval-rules',     require('./routes/admin/approval_rules'));
+app.use('/api/admin/warehouses',         require('./routes/admin/warehouses'));
+app.use('/api/admin/subscription-plans', require('./routes/admin/subscription_plans'));
+app.use('/api/admin/products',           require('./routes/admin/products'));
+app.use('/api/admin/price-lists',        require('./routes/admin/price_lists'));
+app.use('/api/admin/upsell-rules',       require('./routes/admin/upsell_rules'));
+
+// Health check
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
+// Error handler
+app.use((err, _req, res, _next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+module.exports = app;

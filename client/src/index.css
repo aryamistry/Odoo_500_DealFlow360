@@ -1,0 +1,128 @@
+/* src/index.css — DealFlow360 Design System */
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --sidebar-w: 240px;
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-slate-950 text-slate-100 antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-slate-900; }
+  ::-webkit-scrollbar-thumb { @apply bg-slate-700 rounded; }
+}
+
+@layer components {
+  /* Cards */
+  .card { @apply bg-slate-900 border border-slate-800 rounded-xl p-6; }
+  .card-sm { @apply bg-slate-900 border border-slate-800 rounded-lg p-4; }
+
+  /* Base button — standalone, no chaining in v4 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.75rem; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem;
+    transition: all 0.2s; cursor: pointer;
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20;
+  }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem;
+    transition: all 0.2s; cursor: pointer;
+    @apply bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700;
+  }
+  .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-danger {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem;
+    transition: all 0.2s; cursor: pointer;
+    @apply bg-red-900/60 hover:bg-red-800 text-red-300 border border-red-800;
+  }
+  .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-success {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem;
+    transition: all 0.2s; cursor: pointer;
+    @apply bg-emerald-900/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-800;
+  }
+  .btn-success:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 500; font-size: 0.875rem;
+    transition: all 0.2s; cursor: pointer; background: transparent;
+    @apply text-slate-400 hover:text-slate-200 hover:bg-slate-800;
+  }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Inputs */
+  .input { @apply w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all; }
+  .label { @apply block text-xs font-medium text-slate-400 mb-1; }
+  .form-group { @apply flex flex-col gap-1; }
+  .select { @apply w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all; }
+
+  /* Table */
+  .table-wrap { @apply overflow-x-auto rounded-xl border border-slate-800; }
+  .table { @apply w-full text-sm; }
+  .table th { @apply bg-slate-900 text-slate-400 font-medium text-left px-4 py-3 border-b border-slate-800 whitespace-nowrap; }
+  .table td { @apply px-4 py-3 border-b border-slate-800/60 text-slate-200; }
+  .table tr:last-child td { @apply border-b-0; }
+  .table tr:hover td { @apply bg-slate-800/40; }
+
+  /* Badges */
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium; }
+  .badge-draft { @apply bg-slate-700 text-slate-300; }
+  .badge-pending { @apply bg-amber-900/60 text-amber-300 border border-amber-800; }
+  .badge-approved { @apply bg-emerald-900/60 text-emerald-300 border border-emerald-800; }
+  .badge-confirmed { @apply bg-blue-900/60 text-blue-300 border border-blue-800; }
+  .badge-rejected { @apply bg-red-900/60 text-red-300 border border-red-800; }
+  .badge-negotiation { @apply bg-purple-900/60 text-purple-300 border border-purple-800; }
+  .badge-low { @apply bg-emerald-900/60 text-emerald-300; }
+  .badge-medium { @apply bg-amber-900/60 text-amber-300; }
+  .badge-high { @apply bg-red-900/60 text-red-300; }
+  .badge-paid { @apply bg-emerald-900/60 text-emerald-300; }
+  .badge-unpaid { @apply bg-red-900/60 text-red-300; }
+  .badge-partial { @apply bg-amber-900/60 text-amber-300; }
+
+  /* Sidebar */
+  .sidebar-link { @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-all; }
+  .sidebar-link.active { @apply text-slate-100 bg-indigo-600/20 text-indigo-400 border-l-2 border-indigo-500; }
+
+  /* Stats */
+  .stat-card { @apply bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col gap-1; }
+  .stat-value { @apply text-2xl font-bold text-slate-100; }
+  .stat-label { @apply text-xs text-slate-500 uppercase tracking-wider; }
+
+  /* Page header */
+  .page-header { @apply flex items-center justify-between mb-6; }
+  .page-title { @apply text-xl font-semibold text-slate-100; }
+  .page-subtitle { @apply text-sm text-slate-500; }
+
+  /* Activity log */
+  .activity-item { @apply flex gap-3 pb-4 last:pb-0 border-l-2 border-slate-800 pl-4 relative; }
+  .activity-dot { @apply absolute -left-1.5 top-1 w-3 h-3 rounded-full bg-slate-700 border-2 border-slate-950; }
+}
