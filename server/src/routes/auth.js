@@ -14,30 +14,71 @@ const COOKIE_OPTIONS = {
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
 };
 
-// ── Internal user login ──────────────────────────────────────────────────────
+// ── Unified user & customer login ───────────────────────────────────────────
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: 'Email and password required' });
 
   try {
-    const { rows } = await pool.query(
-      'SELECT id, name, email, password_hash, role FROM users WHERE email = $1',
+    // 1. Check internal users table
+    const { rows: userRows } = await pool.query(
+      'SELECT id, name, email, password_hash, role FROM users WHERE LOWER(email) = LOWER($1)',
       [email]
     );
-    const user = rows[0];
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+    const user = userRows[0];
+    if (user) {
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (valid) {
+        const token = jwt.sign(
+          { id: user.id, name: user.name, email: user.email, role: user.role },
+          process.env.JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        res.cookie('token', token, COOKIE_OPTIONS);
+        return res.json({
+          type: 'internal',
+          user: { id: user.id, name: user.name, email: user.email, role: user.role }
+        });
+      }
+    }
 
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
-
-    const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+    // 2. Check customer portal table
+    const { rows: custRows } = await pool.query(
+      'SELECT id, company_name, email, password_hash, tier FROM customers WHERE LOWER(email) = LOWER($1)',
+      [email]
     );
-    res.cookie('token', token, COOKIE_OPTIONS);
-    res.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const customer = custRows[0];
+    if (customer) {
+      const validCust = await bcrypt.compare(password, customer.password_hash);
+      if (validCust) {
+        const token = jwt.sign(
+          { customerId: customer.id, companyName: customer.company_name, email: customer.email, tier: customer.tier, role: 'customer' },
+          process.env.JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        res.cookie('token', token, COOKIE_OPTIONS);
+        return res.json({
+          type: 'customer',
+          user: {
+            id: customer.id,
+            customerId: customer.id,
+            companyName: customer.company_name,
+            email: customer.email,
+            tier: customer.tier,
+            role: 'customer'
+          },
+          customer: {
+            id: customer.id,
+            companyName: customer.company_name,
+            email: customer.email,
+            tier: customer.tier
+          }
+        });
+      }
+    }
+
+    return res.status(401).json({ error: 'Invalid credentials' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

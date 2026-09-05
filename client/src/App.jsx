@@ -23,11 +23,14 @@ import Customers from './pages/Customers';
 import Portal from './pages/Portal';
 import Layout from './components/Layout';
 
-function ProtectedRoute({ children, roles }) {
+function ProtectedRoute({ children, roles, portalOnly = false }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center text-slate-400">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role) && !user.customerId) return <Navigate to="/" replace />;
+  const isCust = Boolean(user.customerId || user.role === 'customer');
+  if (isCust && !portalOnly) return <Navigate to="/portal" replace />;
+  if (!isCust && portalOnly) return <Navigate to="/" replace />;
+  if (roles && !roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
 }
 
@@ -40,7 +43,7 @@ function AppRoutes() {
 
       {/* Customer Portal */}
       <Route path="/portal/*" element={
-        <ProtectedRoute>
+        <ProtectedRoute portalOnly={true}>
           <Portal />
         </ProtectedRoute>
       } />

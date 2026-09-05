@@ -257,12 +257,12 @@ async function run() {
 
   // 7. Bug 2 Verification: Subscription reschedule with reason does not insert 0-amount credit note
   section('7. Bug 2 Fix: Subscription Reschedule Without Zero-Credit Note');
-  // First find or create a subscription
+  // First find or create an active subscription
   let subs = await request('GET', '/subscriptions', null, cookieAdmin);
-  let subId = subs.body?.[0]?.id;
+  let subList = Array.isArray(subs.body) ? subs.body : (subs.body?.data || []);
+  let subId = subList.find(s => s.status === 'active')?.id;
   if (!subId) {
-    // If no subscription, seed one or create subscription quote
-    // Let's create a subscription quote
+    // If no active subscription, create subscription quote
     const subProd = prods.body.find(p => p.subscription_plan_id);
     if (subProd) {
       const sq = await request('POST', '/quotations', { customer_id: parseInt(goldCustomer.id) }, cookieRep);
@@ -274,7 +274,8 @@ async function run() {
       await request('POST', `/quotations/${sq.body.id}/submit`, {}, cookieRep);
       await request('POST', `/portal/quotations/${sq.body.id}/confirm`, { promised_delivery_date: '2026-10-01' }, portalCookie);
       subs = await request('GET', '/subscriptions', null, cookieAdmin);
-      subId = subs.body?.[0]?.id;
+      subList = Array.isArray(subs.body) ? subs.body : (subs.body?.data || []);
+      subId = subList.find(s => s.status === 'active')?.id;
     }
   }
 
