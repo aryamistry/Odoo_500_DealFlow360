@@ -14,10 +14,15 @@ app.use(express.json());
 app.use(cookieParser());
 
 // ── Routes ──────────────────────────────────────────────────────────────────
+// Health check (before analytics catch-all to avoid auth requirement)
+app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+
 app.use('/api/auth',              require('./routes/auth'));
 app.use('/api/quotations',        require('./routes/quotations'));
 app.use('/api/approvals',         require('./routes/approvals'));
 app.use('/api/fulfillment',       require('./routes/fulfillment'));
+// billing.js internally defines /subscriptions, /invoices — mount at /api and /api/billing
+app.use('/api',                   require('./routes/billing'));
 app.use('/api/billing',           require('./routes/billing'));
 app.use('/api/portal',            require('./routes/portal'));
 app.use('/api',                   require('./routes/analytics'));
@@ -32,8 +37,7 @@ app.use('/api/admin/products',           require('./routes/admin/products'));
 app.use('/api/admin/price-lists',        require('./routes/admin/price_lists'));
 app.use('/api/admin/upsell-rules',       require('./routes/admin/upsell_rules'));
 
-// Health check
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', ts: new Date().toISOString() }));
+// (Health check moved to top of route section above analytics catch-all)
 
 // Error handler
 app.use((err, _req, res, _next) => {

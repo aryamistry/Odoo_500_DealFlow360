@@ -9,7 +9,7 @@ export default function SubscriptionsList() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/billing/subscriptions').then(r => setSubs(r.data)).catch(() => toast.error('Failed')).finally(() => setLoading(false));
+    api.get('/subscriptions').then(r => setSubs(r.data)).catch(() => toast.error('Failed')).finally(() => setLoading(false));
   }, []);
 
   return (

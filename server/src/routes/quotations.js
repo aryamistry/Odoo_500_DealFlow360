@@ -89,6 +89,7 @@ router.post('/', requireRole('sales_rep', 'sales_manager', 'admin'), async (req,
 
 // ── Get Quotation Detail ──────────────────────────────────────────────────────
 router.get('/:id', async (req, res) => {
+  if (isNaN(parseInt(req.params.id, 10))) return res.status(400).json({ error: 'Invalid ID' });
   try {
     const { rows: [q] } = await pool.query(`
       SELECT q.*, c.company_name AS customer_name, c.tier AS customer_tier,
@@ -195,6 +196,7 @@ router.delete('/:id/lines/:lineId', requireRole('sales_rep', 'sales_manager', 'a
 
 // ── Upsell Suggestions (Phase 4) ─────────────────────────────────────────────
 router.get('/:id/upsell-suggestions', async (req, res) => {
+  if (isNaN(parseInt(req.params.id, 10))) return res.json([]);
   try {
     const { rows: cartProductIds } = await pool.query(
       'SELECT DISTINCT product_id FROM quotation_lines WHERE quotation_id=$1',

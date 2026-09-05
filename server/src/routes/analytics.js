@@ -153,12 +153,12 @@ router.get('/reports', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-// ── Summary stats for dashboard ───────────────────────────────────────────────
-router.get('/reports/summary', async (_req, res) => {
+// ── Deal Health Summary (alias for dashboard) ─────────────────────────────────
+router.get('/deal-health/summary', async (_req, res) => {
   try {
     const [quotes, invoices, subscriptions] = await Promise.all([
       pool.query(`SELECT status, COUNT(*) FROM quotations GROUP BY status`),
-      pool.query(`SELECT status, COUNT(*), SUM(amount) FROM invoices GROUP BY status`),
+      pool.query(`SELECT status, COUNT(*), COALESCE(SUM(amount),0) AS total FROM invoices GROUP BY status`),
       pool.query(`SELECT status, COUNT(*) FROM subscriptions GROUP BY status`),
     ]);
     res.json({

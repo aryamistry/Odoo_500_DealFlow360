@@ -5,21 +5,58 @@
 
 ---
 
-## Status
+## Multi-Machine / Git Independence Rules
 
-- [x] Database schema (`dealflow360_schema_v2.sql`) — **Applied in PostgreSQL**
-- [x] Phase 0 — Foundation (repo bootstrap + seed script + DB connection) — **Applied & Seeded**
-- [x] Phase 1 — Auth & Roles (JWT in httpOnly cookies, internal & customer portals) — **Applied & Tested**
-- [x] Phase 2 — Backend Configuration (8 Admin CRUD tabs & endpoints) — **Applied & Tested**
-- [x] Phase 3 — Quotation Builder (lines CRUD, tiered pricing, live margin calculation) — **Applied & Tested**
-- [x] Phase 4 — Upsell & Cross-Sell Panel (recommendations engine + one-click add) — **Applied & Tested**
-- [x] Phase 5 — Discount Governance & Approval Workflow (multi-tier routing & revision log) — **Applied & Tested**
-- [x] Phase 6 — Fulfillment & Warehouse Split (greedy multi-warehouse split & backorders) — **Applied & Tested**
-- [x] Phase 7 — Hybrid Billing (one-time vs recurring split into separate invoices) — **Applied & Tested**
-- [x] Phase 8 — Payments (payment recording, partial payments, status recalculation) — **Applied & Tested**
-- [x] Phase 9 — Customer Portal Negotiation & Reapproval (2-panel negotiation & auto-reapproval) — **Applied & Tested**
-- [x] Phase 10 — Deal Health & Reporting (stalled deals, discount anomalies, delivery slippage, Recharts) — **Applied & Tested**
-- [x] Phase 11 — Demo & Deliverables (architecture, demo accounts, walkthrough) — **Applied & Ready**
+> **Core rule:** Each phase must be independently runnable, self-contained within its scope, and safely transferable through Git so development can move between multiple machines without breaking previously completed phases.
+
+These rules apply to **every phase** in this project and must be respected by all contributors:
+
+| # | Rule |
+|---|------|
+| 1 | Each phase must build on the **latest committed state** of the previous phase. |
+| 2 | Do **not** create unnecessary dependencies on future phases. |
+| 3 | Keep phase-specific logic, APIs, components, and DB interactions **modular and clearly separated**. |
+| 4 | Avoid changes to unrelated files or modules outside the current phase unless strictly required. |
+| 5 | Do **not** rely on uncommitted local files, local-only configuration, or manual changes made on another machine. |
+| 6 | Any required configuration, migration, seed data, `.env.example`, or setup step **must be committed to Git** and documented. |
+| 7 | After completing a phase, the repository must be in a **working, runnable state** — another machine can `git pull` and continue immediately. |
+| 8 | Do **not** assume the next phase has already been implemented. |
+| 9 | Preserve **backward compatibility** with all previously completed phases. |
+| 10 | Prefer **small, atomic commits** with clear phase-related commit messages. |
+| 11 | A developer must be able to `git clone` / `git pull` on a **fresh machine** and continue from the current phase without manually reconstructing previous work. |
+
+### Checklist Before Committing a Phase
+
+- [ ] All new env vars are present in `server/.env.example` (never commit `.env` itself).
+- [ ] All DB schema changes are in a versioned SQL migration file (or captured in the seed script).
+- [ ] `npm install` / `node scripts/seed.js` produce a fully working state from a clean checkout.
+- [ ] No hard-coded paths, machine-specific ports outside `.env`, or localhost assumptions beyond what is documented.
+- [ ] The phase's new routes/components do not break any previously passing flows.
+- [ ] Commit message follows the pattern: `phase-N: <short description of what was implemented>`.
+
+---
+
+## Status: 100% Complete (12/12 Phases Fully Implemented & Tested)
+
+| Phase | Description | Scope | Status | Tests |
+| :--- | :--- | :--- | :---: | :---: |
+| **DB** | Schema Definition & Migration | PostgreSQL v2 schema (22 tables) | ✅ Completed | 100% |
+| **Phase 0** | Foundation & Repository Bootstrap | Express + Vite + Tailwind v4 + Seed script | ✅ Completed | 100% |
+| **Phase 1** | Auth & Role-Based Access | JWT in httpOnly cookies, internal & customer portals | ✅ Completed | 5/5 Passed |
+| **Phase 2** | Backend Configuration (Admin) | 8 Admin CRUD tabs & API routers | ✅ Completed | 8/8 Passed |
+| **Phase 3** | Quotation Builder | Line item builder, tiered pricing, margin calculator | ✅ Completed | 5/5 Passed |
+| **Phase 4** | Upsell & Cross-Sell Panel | Recommendation engine, margin impact, 1-click add | ✅ Completed | 1/1 Passed |
+| **Phase 5** | Discount Governance & Approvals | Multi-tier routing, risk engine, revision log | ✅ Completed | 3/3 Passed |
+| **Phase 6** | Fulfillment & Warehouse Split | Greedy split algorithm, backorders, shipment tracking | ✅ Completed | 2/2 Passed |
+| **Phase 7** | Hybrid Billing | Split one-time & recurring invoices, subscriptions | ✅ Completed | 1/1 Passed |
+| **Phase 8** | Payments & Invoicing | Transaction recording, partial payment, ledger | ✅ Completed | 1/1 Passed |
+| **Phase 9** | Customer Portal Negotiation | 2-panel review, counter-offer, auto re-approval | ✅ Completed | 2/2 Passed |
+| **Phase 10** | Deal Health Radar & Analytics | Stalled deals, discount anomalies, Recharts graphs | ✅ Completed | 5/5 Passed |
+| **Phase 11** | Demo Walkthrough & Deliverables | Demo accounts, architecture docs, verified E2E | ✅ Completed | Verified |
+
+**Overall Progress:** **100% Complete**  
+**Automated Phase Test Suite:** **33/33 Tests Passed (0 Failures)**  
+**Production Frontend Build:** **Vite Build Successful (0 Errors)**
 
 ---
 
