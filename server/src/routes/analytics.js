@@ -4,9 +4,10 @@
 const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
-router.use(authenticate, requireRole('admin', 'sales_manager', 'finance'));
+router.use(['/analytics', '/deal-health', '/reports'], authenticate, requireRole('admin', 'sales_manager', 'finance'));
 
 // ── Stalled Deals ─────────────────────────────────────────────────────────────
 router.get('/deal-health/stalled', async (_req, res) => {
@@ -144,6 +145,10 @@ router.get('/reports', async (req, res) => {
     if (from && to && new Date(from) > new Date(to)) {
       return res.status(400).json({ error: 'From date must be before or equal to To date' });
     }
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
+    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
     let where = [];
     let params = [];
     let i = 1;
@@ -163,16 +168,20 @@ router.get('/reports', async (req, res) => {
         COUNT(DISTINCT q.id) AS quote_count,
         COALESCE(SUM(ql.unit_price*(1-ql.discount_pct/100.0)*ql.quantity),0) AS total_revenue,
         COALESCE(SUM((ql.unit_price*(1-ql.discount_pct/100.0) - p.cost_price)*ql.quantity),0) AS total_margin,
-        AVG(ql.discount_pct) AS avg_discount_pct
+        AVG(ql.discount_pct) AS avg_discount_pct,
+        COUNT(*) OVER() AS total_count
       FROM quotations q
       LEFT JOIN quotation_lines ql ON ql.quotation_id=q.id
       LEFT JOIN products p ON p.id=ql.product_id
       ${whereClause}
       GROUP BY q.status, q.risk_level
       ORDER BY q.status
+      ${limitClause} ${offsetClause}
     `, params);
 
-    res.json(rows);
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 

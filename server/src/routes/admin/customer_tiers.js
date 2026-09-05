@@ -3,8 +3,7 @@ const express = require('express');
 const pool = require('../../db');
 const { authenticate, requireRole } = require('../../middleware/auth');
 const router = express.Router();
-
-router.use(authenticate);
+router.use(authenticate, requireRole('admin', 'sales_manager', 'sales_rep', 'finance'));
 
 // GET all tiers (pre-seeded: Bronze, Silver, Gold)
 // Accessible by any internal user — reps need this to populate the customer-create form.

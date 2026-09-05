@@ -8,7 +8,7 @@ const { createInvoices } = require('../services/billing');
 const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
-router.use(authenticate);
+router.use(['/subscriptions', '/invoices'], authenticate, requireRole('sales_rep', 'sales_manager', 'finance', 'admin'));
 
 // ══ Subscriptions ════════════════════════════════════════════════════════════
 

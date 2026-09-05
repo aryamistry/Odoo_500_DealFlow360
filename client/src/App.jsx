@@ -70,6 +70,8 @@ function AppRoutes() {
         <Route path="deal-health" element={<DealHealth />} />
         <Route path="reports" element={<Reports />} />
         <Route path="admin" element={<AdminSettings />} />
+        <Route path="manager" element={<Navigate to="/approvals" replace />} />
+        <Route path="finance" element={<Navigate to="/invoices" replace />} />
       </Route>
     </Routes>
   );

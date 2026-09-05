@@ -5,12 +5,53 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@dealflow.com', pass: 'Admin@123', badge: 'Internal', color: 'text-rose-400 bg-rose-950/40 border-rose-800/50' },
-  { label: 'Sales Rep', email: 'rep@dealflow.com', pass: 'Rep@123', badge: 'Internal', color: 'text-indigo-400 bg-indigo-950/40 border-indigo-800/50' },
-  { label: 'Sales Manager', email: 'manager@dealflow.com', pass: 'Manager@123', badge: 'Internal', color: 'text-blue-400 bg-blue-950/40 border-blue-800/50' },
-  { label: 'Finance', email: 'finance@dealflow.com', pass: 'Finance@123', badge: 'Internal', color: 'text-emerald-400 bg-emerald-950/40 border-emerald-800/50' },
-  { label: 'Customer (Acme)', email: 'acme@customer.com', pass: 'Customer@123', badge: 'Portal', color: 'text-amber-400 bg-amber-950/40 border-amber-800/50' },
+  { label: 'Admin', email: 'admin@dealflow.com', pass: 'Admin@123' },
+  { label: 'Sales Rep', email: 'rep@dealflow.com', pass: 'Rep@123' },
+  { label: 'Sales Manager', email: 'manager@dealflow.com', pass: 'Manager@123' },
+  { label: 'Finance', email: 'finance@dealflow.com', pass: 'Finance@123' },
+  { label: 'Customer', email: 'acme@customer.com', pass: 'Customer@123' },
 ];
+
+/**
+ * Normalizes role string and computes the initial destination URL.
+ * The backend database is the single source of truth for the role.
+ */
+export function getDestinationForRole(user) {
+  if (!user) return '/login';
+  if (user.customerId) return '/portal';
+
+  const role = String(user.role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+  switch (role) {
+    case 'customer':
+    case 'client':
+      return '/portal';
+
+    case 'admin':
+    case 'administrator':
+      return '/admin';
+
+    case 'sales_manager':
+    case 'salesmanager':
+    case 'manager':
+      return '/manager';
+
+    case 'finance':
+    case 'finance_manager':
+      return '/finance';
+
+    case 'sales_rep':
+    case 'salesrep':
+    case 'sales_representative':
+    case 'salesrepresentative':
+    case 'rep':
+    default:
+      return '/';
+  }
+}
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -19,12 +60,9 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Auto-redirect if already logged in
+  // If already authenticated, redirect directly to the appropriate workspace
   if (user) {
-    if (user.customerId || user.role === 'customer') {
-      return <Navigate to="/portal" replace />;
-    }
-    return <Navigate to="/" replace />;
+    return <Navigate to={getDestinationForRole(user)} replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -35,22 +73,19 @@ export default function Login() {
 
     setLoading(true);
     try {
-      // Unified login: backend checks internal users then customer portal automatically
-      const loggedUser = await login(email, password);
-      if (loggedUser.customerId || loggedUser.role === 'customer') {
-        toast.success(`Welcome to Customer Portal, ${loggedUser.companyName || 'Customer'}!`);
-        navigate('/portal');
-      } else {
-        toast.success(`Welcome back, ${loggedUser.name}!`);
-        navigate('/');
-      }
+      // Calls unified POST /auth/login — backend inspects credentials and returns role
+      const authenticatedUser = await login(email, password);
+      const destination = getDestinationForRole(authenticatedUser);
+      toast.success(`Welcome, ${authenticatedUser.name || authenticatedUser.companyName || 'User'}!`);
+      navigate(destination);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Invalid email or password');
+      toast.error(err.response?.data?.error || 'Invalid credentials');
     } finally {
       setLoading(false);
     }
   };
 
+  // Demo accounts helper: ONLY fills email/password input fields (does NOT assign role/type)
   const handleQuickFill = (demoEmail, demoPass) => {
     setEmail(demoEmail);
     setPassword(demoPass);
@@ -65,17 +100,13 @@ export default function Login() {
             DealFlow<span className="text-slate-100">360</span>
           </h1>
           <p className="text-slate-400 mt-2 text-sm">Unified Quotation-to-Cash Platform</p>
-          <div className="inline-flex items-center gap-2 mt-3 px-3 py-1 rounded-full text-xs font-medium bg-indigo-950/70 border border-indigo-800/40 text-indigo-300">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            Internal Staff & Customer Portal Unified
-          </div>
         </div>
 
         <div className="card shadow-2xl border-slate-800">
           <div className="mb-6">
             <h2 className="text-xl font-semibold text-slate-100">Sign In</h2>
             <p className="text-xs text-slate-400 mt-1">
-              Enter your email and password. The system will automatically direct you to your internal role workspace or customer portal.
+              Enter your credentials to access your workspace.
             </p>
           </div>
 
@@ -86,7 +117,7 @@ export default function Login() {
                 id="email"
                 type="email"
                 className="input text-sm"
-                placeholder="name@company.com or acme@customer.com"
+                placeholder="name@company.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
@@ -124,10 +155,10 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Quick Fill Demo Credentials */}
+          {/* Demo Accounts (Helper to auto-fill inputs only) */}
           <div className="mt-6 pt-5 border-t border-slate-800/80">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2.5">
-              Quick Fill Demo Accounts
+              Demo Accounts
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {DEMO_ACCOUNTS.map(acc => (
@@ -135,21 +166,16 @@ export default function Login() {
                   key={acc.email}
                   type="button"
                   onClick={() => handleQuickFill(acc.email, acc.pass)}
-                  className={`text-left p-2 rounded-lg border text-xs transition-all hover:scale-[1.02] cursor-pointer ${acc.color}`}
+                  className="text-left p-2 rounded-lg border border-slate-800 bg-slate-900/60 hover:bg-slate-800/80 hover:border-slate-700 text-xs transition-all hover:scale-[1.02] cursor-pointer"
                   title={`Click to fill ${acc.email}`}
                 >
-                  <div className="font-semibold truncate">{acc.label}</div>
-                  <div className="text-[10px] opacity-75 font-mono truncate">{acc.email.split('@')[0]}</div>
+                  <div className="font-semibold text-slate-200 truncate">{acc.label}</div>
+                  <div className="text-[10px] text-slate-400 font-mono truncate">{acc.email}</div>
                 </button>
               ))}
             </div>
           </div>
         </div>
-
-        {/* Footer Hint */}
-        <p className="text-center text-xs text-slate-500 mt-6">
-          DealFlow360 automatically routes sales reps, managers, finance, admins, and portal customers based on authenticated account credentials.
-        </p>
       </div>
     </div>
   );

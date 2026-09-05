@@ -8,7 +8,7 @@ const { submitForApproval } = require('../services/governance');
 const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
-router.use(authenticate);
+router.use(authenticate, requireRole('sales_rep', 'sales_manager', 'finance', 'admin'));
 
 // Helper: compute unit price with price list adjustment
 async function computeUnitPrice(productId, variantId, priceListId) {

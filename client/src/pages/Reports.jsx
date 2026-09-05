@@ -4,12 +4,20 @@ import api from '../api/client';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import Pagination from '../components/Pagination';
 
 export default function Reports() {
   const [data, setData] = useState([]);
+  const [allData, setAllData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterOptions, setFilterOptions] = useState({ reps: [], categories: [] });
   const [filters, setFilters] = useState({ from: '', to: '', status: '', rep_id: '', category_id: '' });
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const loadFilterOptions = () => {
     api.get('/reports/filter-options')
@@ -17,35 +25,68 @@ export default function Reports() {
       .catch(() => {});
   };
 
-  const fetchReport = () => {
+  const fetchReport = (pageOverride = page, limitOverride = limit) => {
     if (filters.from && filters.to && filters.from > filters.to) {
       toast.error('From date must be before or equal to To date');
       return;
     }
     setLoading(true);
-    const params = {};
+    const params = { page: pageOverride, limit: limitOverride };
     Object.keys(filters).forEach(k => {
       if (filters[k]) params[k] = filters[k];
     });
-    api.get('/reports', { params })
-      .then(r => setData(r.data))
-      .catch(() => toast.error('Failed'))
+
+    const unpaginatedParams = {};
+    Object.keys(filters).forEach(k => {
+      if (filters[k]) unpaginatedParams[k] = filters[k];
+    });
+
+    Promise.all([
+      api.get('/reports', { params }),
+      api.get('/reports', { params: unpaginatedParams })
+    ])
+      .then(([paginatedRes, fullRes]) => {
+        if (paginatedRes.data && paginatedRes.data.data) {
+          setData(paginatedRes.data.data);
+          setTotal(paginatedRes.data.total);
+          setTotalPages(paginatedRes.data.totalPages);
+        } else {
+          setData(Array.isArray(paginatedRes.data) ? paginatedRes.data : []);
+          setTotal(paginatedRes.data?.length || 0);
+          setTotalPages(1);
+        }
+
+        const fullRows = Array.isArray(fullRes.data) ? fullRes.data : (fullRes.data?.data || []);
+        setAllData(fullRows);
+      })
+      .catch(() => toast.error('Failed to load report'))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadFilterOptions();
-    fetchReport();
   }, []);
 
-  const totalRevenue = data.reduce((s, r) => s + parseFloat(r.total_revenue || 0), 0);
-  const totalMargin = data.reduce((s, r) => s + parseFloat(r.total_margin || 0), 0);
-  const totalQuotes = data.reduce((s, r) => s + parseInt(r.quote_count || 0), 0);
+  useEffect(() => {
+    fetchReport(page, limit);
+  }, [page, limit]);
+
+  const handleFilterSubmit = (e) => {
+    if (e) e.preventDefault();
+    setPage(1);
+    fetchReport(1, limit);
+  };
+
+  const sourceData = allData.length > 0 ? allData : data;
+  const totalRevenue = sourceData.reduce((s, r) => s + parseFloat(r.total_revenue || 0), 0);
+  const totalMargin = sourceData.reduce((s, r) => s + parseFloat(r.total_margin || 0), 0);
+  const totalQuotes = sourceData.reduce((s, r) => s + parseInt(r.quote_count || 0), 0);
 
   const exportCSV = () => {
-    if (data.length === 0) return toast.error('No data to export');
+    const exportRows = allData.length > 0 ? allData : data;
+    if (exportRows.length === 0) return toast.error('No data to export');
     const headers = ['Status', 'Risk Level', 'Quote Count', 'Total Revenue', 'Total Margin', 'Avg Discount %'];
-    const rows = data.map(r => [
+    const rows = exportRows.map(r => [
       r.status,
       r.risk_level || '',
       r.quote_count,
@@ -65,8 +106,9 @@ export default function Reports() {
   };
 
   const exportXLSX = () => {
-    if (data.length === 0) return toast.error('No data to export');
-    const rows = data.map(r => ({
+    const exportRows = allData.length > 0 ? allData : data;
+    if (exportRows.length === 0) return toast.error('No data to export');
+    const rows = exportRows.map(r => ({
       'Status': r.status || '',
       'Risk Level': r.risk_level || '',
       'Quote Count': parseInt(r.quote_count || 0),
@@ -103,7 +145,7 @@ export default function Reports() {
       </div>
 
       {/* Filters */}
-      <div className="card mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
+      <form onSubmit={handleFilterSubmit} className="card mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
         <div className="form-group">
           <label className="label">From Date</label>
           <input type="date" className="input" value={filters.from} onChange={e => setFilters(f => ({...f, from: e.target.value}))} />
@@ -137,10 +179,10 @@ export default function Reports() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <button onClick={fetchReport} className="btn-primary whitespace-nowrap">Filter</button>
+            <button type="submit" className="btn-primary whitespace-nowrap">Filter</button>
           </div>
         </div>
-      </div>
+      </form>
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -150,11 +192,11 @@ export default function Reports() {
       </div>
 
       {/* Chart */}
-      {data.length > 0 && (
+      {sourceData.length > 0 && (
         <div className="card mb-6">
           <h2 className="font-semibold mb-4">Revenue & Margin by Status</h2>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={data}>
+            <BarChart data={sourceData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
               <XAxis dataKey="status" tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
@@ -187,6 +229,20 @@ export default function Reports() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Bar */}
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        limit={limit}
+        onPageChange={newPage => setPage(newPage)}
+        onLimitChange={newLimit => {
+          setLimit(newLimit);
+          setPage(1);
+        }}
+        pageSizeOptions={[5, 10, 25, 50]}
+      />
     </div>
   );
 }
