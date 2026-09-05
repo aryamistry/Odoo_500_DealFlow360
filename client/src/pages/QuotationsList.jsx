@@ -1,9 +1,10 @@
-// src/pages/QuotationsList.jsx
+﻿// src/pages/QuotationsList.jsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';
 
 const STATUSES = ['', 'draft', 'pending_approval', 'approved', 'under_negotiation', 'confirmed', 'rejected'];
 
@@ -30,20 +31,46 @@ export default function QuotationsList() {
   const [newCustForm, setNewCustForm] = useState({ company_name: '', email: '', tier: '', password: '' });
   const [submittingCust, setSubmittingCust] = useState(false);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const fetchQuotes = () => {
     setLoading(true);
-    api.get('/quotations', { params: status ? { status } : {} })
-      .then(r => setQuotes(r.data))
+    const params = { page, limit };
+    if (status) params.status = status;
+    api.get('/quotations', { params })
+      .then(r => {
+        // Backend returns { data, total, page, totalPages } when page param is sent
+        if (r.data && r.data.data) {
+          setQuotes(r.data.data);
+          setTotal(r.data.total);
+          setTotalPages(r.data.totalPages);
+        } else {
+          setQuotes(Array.isArray(r.data) ? r.data : []);
+          setTotal(r.data?.length || 0);
+          setTotalPages(1);
+        }
+      })
       .catch(e => toast.error(e.response?.data?.error || 'Failed to load'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchQuotes(); }, [status]);
+  useEffect(() => { fetchQuotes(); }, [status, page, limit]);
+
+  // Reset to page 1 when filters change
+  const handleStatusChange = (s) => { setStatus(s); setPage(1); };
+  const handleLimitChange  = (l) => { setLimit(l); setPage(1); };
 
   useEffect(() => {
     // Load real customers from database via /admin/customers
     api.get('/admin/customers')
-      .then(r => setCustomers(r.data))
+      .then(r => {
+        const data = r.data?.data ?? r.data;
+        setCustomers(Array.isArray(data) ? data : []);
+      })
       .catch(() => {});
 
     // Load available customer tiers from database
@@ -104,7 +131,7 @@ export default function QuotationsList() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Quotations</h1>
-          <p className="page-subtitle">{quotes.length} quotations</p>
+          <p className="page-subtitle">{total} quotations</p>
         </div>
         {(user?.role !== 'finance') && (
           <button onClick={() => setCreating(!creating)} className="btn-primary">+ New Quotation</button>
@@ -146,14 +173,14 @@ export default function QuotationsList() {
             <div className="mt-4 pt-4 border-t border-slate-800 bg-slate-950/60 p-4 rounded-lg border border-slate-700/60 animate-fadeIn">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-indigo-300 flex items-center gap-2">
-                  <span>👤</span> Quick Add Customer
+                  <span>ðŸ‘¤</span> Quick Add Customer
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowNewCustModal(false)}
                   className="text-slate-400 hover:text-slate-200 text-sm"
                 >
-                  ✕
+                  âœ•
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
@@ -215,7 +242,7 @@ export default function QuotationsList() {
                   onClick={handleCreateCustomerInline}
                   className="btn-primary btn-sm"
                 >
-                  {submittingCust ? 'Creating…' : 'Create & Select Customer'}
+                  {submittingCust ? 'Creatingâ€¦' : 'Create & Select Customer'}
                 </button>
               </div>
             </div>
@@ -228,7 +255,7 @@ export default function QuotationsList() {
         {STATUSES.map(s => (
           <button
             key={s}
-            onClick={() => setStatus(s)}
+            onClick={() => handleStatusChange(s)}
             className={`btn-sm btn ${status === s ? 'btn-primary' : 'btn-secondary'}`}
           >
             {s || 'All'}
@@ -261,7 +288,7 @@ export default function QuotationsList() {
                 <td>{q.customer_name}</td>
                 <td className="text-slate-400">{q.rep_name}</td>
                 <td className="text-slate-400">{q.line_count}</td>
-                <td className="font-mono text-sm">₹{parseFloat(q.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+                <td className="font-mono text-sm">â‚¹{parseFloat(q.total_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
                 <td><StatusBadge status={q.status} /></td>
                 <td>{q.risk_level && <span className={`badge badge-${q.risk_level}`}>{q.risk_level}</span>}</td>
                 <td className="text-slate-500 text-xs">{new Date(q.updated_at).toLocaleDateString()}</td>
@@ -270,6 +297,16 @@ export default function QuotationsList() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        limit={limit}
+        onPageChange={setPage}
+        onLimitChange={handleLimitChange}
+      />
     </div>
   );
 }
+

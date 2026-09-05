@@ -8,26 +8,53 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const pool = require('../../db');
 const { authenticate, requireRole } = require('../../middleware/auth');
+const { getPaginationParams, sendPaginated } = require('../../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate, requireRole('admin', 'sales_manager', 'sales_rep'));
 
 // ── GET /api/admin/customers ──────────────────────────────────────────────────
-// Returns all customers joined with their tier's max_discount_pct.
-router.get('/', async (_req, res) => {
+// Returns customers joined with their tier's max_discount_pct.
+// Supports optional ?page=&limit=&search=&tier= query params.
+router.get('/', async (req, res) => {
   try {
+    const { search, tier } = req.query;
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+
+    let where = [];
+    let params = [];
+    let i = 1;
+    if (search) {
+      where.push(`(c.company_name ILIKE $${i} OR c.email ILIKE $${i})`);
+      params.push(`%${search}%`);
+      i++;
+    }
+    if (tier) { where.push(`c.tier = $${i++}`); params.push(tier); }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const limitClause  = isPaginated ? `LIMIT $${i++}`  : '';
+    const offsetClause = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
+
     const { rows } = await pool.query(`
       SELECT c.id, c.company_name, c.email, c.tier,
              c.tier AS tier_name, c.tier AS tier_id,
              c.created_at,
-             ct.max_discount_pct AS tier_max_discount_pct
+             ct.max_discount_pct AS tier_max_discount_pct,
+             COUNT(*) OVER() AS total_count
       FROM customers c
       JOIN customer_tiers ct ON ct.tier = c.tier
+      ${whereClause}
       ORDER BY c.company_name
-    `);
-    res.json(rows);
+      ${limitClause} ${offsetClause}
+    `, params);
+
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 // ── POST /api/admin/customers ─────────────────────────────────────────────────
 // Create a new customer.

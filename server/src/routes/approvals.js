@@ -5,6 +5,7 @@ const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { reEvaluateAfterNegotiation } = require('../services/governance');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate);
@@ -13,20 +14,28 @@ router.use(authenticate);
 router.get('/', requireRole('sales_manager', 'finance', 'admin'), async (req, res) => {
   try {
     const roleFilter = req.user.role === 'admin' ? '' : `AND aps.approver_role = '${req.user.role}'`;
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
+    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
     const { rows } = await pool.query(`
       SELECT aps.*, q.quote_number, q.status AS quote_status, q.risk_level,
              c.company_name AS customer_name, u.name AS rep_name,
              COALESCE(
                (SELECT SUM((ql.unit_price*(1-ql.discount_pct/100.0))*ql.quantity) FROM quotation_lines ql WHERE ql.quotation_id=q.id), 0
-             ) AS total_amount
+             ) AS total_amount,
+             COUNT(*) OVER() AS total_count
       FROM approval_steps aps
       JOIN quotations q ON q.id=aps.quotation_id
       JOIN customers c ON c.id=q.customer_id
       JOIN users u ON u.id=q.sales_rep_id
       WHERE aps.status='pending' ${roleFilter}
       ORDER BY aps.created_at DESC
+      ${limitClause} ${offsetClause}
     `);
-    res.json(rows);
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 

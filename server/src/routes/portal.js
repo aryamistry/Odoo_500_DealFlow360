@@ -6,26 +6,38 @@ const pool = require('../db');
 const { authenticate, requireCustomer } = require('../middleware/auth');
 const { splitFulfillment } = require('../services/fulfillment');
 const { createInvoices } = require('../services/billing');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate, requireCustomer);
 
+
 // ── List customer's quotations ────────────────────────────────────────────────
 router.get('/quotations', async (req, res) => {
   try {
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
+    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
     const { rows } = await pool.query(`
       SELECT q.*, u.name AS rep_name,
         COALESCE(
           (SELECT SUM((ql.unit_price*(1-ql.discount_pct/100.0))*ql.quantity) FROM quotation_lines ql WHERE ql.quotation_id=q.id), 0
-        ) AS total_amount
+        ) AS total_amount,
+        COUNT(*) OVER() AS total_count
       FROM quotations q
       JOIN users u ON u.id=q.sales_rep_id
       WHERE q.customer_id=$1
       ORDER BY q.updated_at DESC
+      ${limitClause} ${offsetClause}
     `, [req.user.customerId]);
-    res.json(rows);
+
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 // ── Get single quotation (read-only) ─────────────────────────────────────────
 router.get('/quotations/:id', async (req, res) => {

@@ -5,6 +5,7 @@ const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { splitFulfillment } = require('../services/fulfillment');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate);
@@ -12,23 +13,31 @@ router.use(authenticate);
 // ── Fulfillment List ──────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
+    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
     const { rows } = await pool.query(`
       SELECT q.id AS quotation_id, q.quote_number, c.company_name AS customer_name, q.status,
-             -- Derived fulfillment status (not stored)
              CASE
                WHEN EXISTS(SELECT 1 FROM fulfillment_lines fl JOIN quotation_lines ql ON ql.id=fl.quotation_line_id WHERE ql.quotation_id=q.id AND fl.is_backorder=true) THEN 'backordered'
                WHEN COALESCE((SELECT SUM(fl.quantity_fulfilled) FROM fulfillment_lines fl JOIN quotation_lines ql ON ql.id=fl.quotation_line_id WHERE ql.quotation_id=q.id),0) >= COALESCE((SELECT SUM(ql2.quantity) FROM quotation_lines ql2 WHERE ql2.quotation_id=q.id),0) THEN 'fulfilled'
                WHEN EXISTS(SELECT 1 FROM fulfillment_lines fl2 JOIN quotation_lines ql2 ON ql2.id=fl2.quotation_line_id WHERE ql2.quotation_id=q.id) THEN 'partial'
                ELSE 'pending'
-             END AS fulfillment_status
+             END AS fulfillment_status,
+             COUNT(*) OVER() AS total_count
       FROM quotations q
       JOIN customers c ON c.id=q.customer_id
       WHERE q.status IN ('approved','confirmed')
       ORDER BY q.updated_at DESC
+      ${limitClause} ${offsetClause}
     `);
-    res.json(rows);
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 // ── Fulfillment Detail ────────────────────────────────────────────────────────
 router.get('/:quotationId', async (req, res) => {

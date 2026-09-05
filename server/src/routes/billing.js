@@ -5,6 +5,7 @@ const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { createInvoices } = require('../services/billing');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate);
@@ -13,19 +14,28 @@ router.use(authenticate);
 
 router.get('/subscriptions', async (req, res) => {
   try {
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+    const limitClause  = isPaginated ? `LIMIT ${limit}` : '';
+    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
     const { rows } = await pool.query(`
       SELECT s.*, c.company_name AS customer_name,
-             p.name AS product_name, sp.billing_cycle, sp.name AS plan_name
+             p.name AS product_name, sp.billing_cycle, sp.name AS plan_name,
+             COUNT(*) OVER() AS total_count
       FROM subscriptions s
       JOIN customers c ON c.id=s.customer_id
       JOIN quotation_lines ql ON ql.id=s.quotation_line_id
       JOIN products p ON p.id=ql.product_id
       LEFT JOIN subscription_plans sp ON sp.id=p.subscription_plan_id
       ORDER BY s.next_bill_date
+      ${limitClause} ${offsetClause}
     `);
-    res.json(rows);
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 router.get('/subscriptions/:id', async (req, res) => {
   try {
@@ -130,6 +140,8 @@ router.post('/subscriptions/:id/cancel', requireRole('admin', 'finance', 'sales_
 router.get('/invoices', async (req, res) => {
   try {
     const { status, customer_id } = req.query;
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+
     let where = [];
     let params = [];
     let i = 1;
@@ -137,18 +149,28 @@ router.get('/invoices', async (req, res) => {
     if (customer_id) { where.push(`i.customer_id=$${i++}`); params.push(customer_id); }
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
+    const limitClause  = isPaginated ? `LIMIT $${i++}`  : '';
+    const offsetClause = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
+
     const { rows } = await pool.query(`
       SELECT i.*, c.company_name AS customer_name, q.quote_number,
-             COALESCE((SELECT SUM(pt.amount) FROM payment_transactions pt WHERE pt.invoice_id=i.id AND pt.type='payment'),0) AS paid_amount
+             COALESCE((SELECT SUM(pt.amount) FROM payment_transactions pt WHERE pt.invoice_id=i.id AND pt.type='payment'),0) AS paid_amount,
+             COUNT(*) OVER() AS total_count
       FROM invoices i
       JOIN customers c ON c.id=i.customer_id
       JOIN quotations q ON q.id=i.quotation_id
       ${whereClause}
       ORDER BY i.issued_at DESC
+      ${limitClause} ${offsetClause}
     `, params);
-    res.json(rows);
+
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 router.get('/invoices/:id', async (req, res) => {
   try {

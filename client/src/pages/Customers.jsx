@@ -1,10 +1,10 @@
 // src/pages/Customers.jsx
 // Customer Management — full CRUD for the DealFlow360 customer entity.
-// Replaces the "quotation scraping hack" previously used in QuotationsList.
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import Pagination from '../components/Pagination';
 
 function TierBadge({ tier }) {
   const cls = { Gold: 'badge-approved', Silver: 'badge-pending', Bronze: 'badge-draft' };
@@ -91,32 +91,63 @@ export default function Customers() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
+  // Search/filter state (server-side)
   const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [filterTier, setFilterTier] = useState('');
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Load tiers once on mount
+  useEffect(() => {
+    api.get('/admin/customer-tiers')
+      .then(res => setTiers(res.data))
+      .catch(() => {})
+      .finally(() => setTiersLoading(false));
+  }, []);
 
   const load = () => {
     setLoading(true);
-    // Fetch customers and tiers in parallel; tiers need to resolve before the
-    // create form can mount (so CustomerForm never starts with tier = '').
-    Promise.all([
-      api.get('/admin/customers'),
-      api.get('/admin/customer-tiers'),
-    ])
-      .then(([custRes, tierRes]) => {
-        setCustomers(custRes.data);
-        setTiers(tierRes.data);
+    const params = { page, limit };
+    if (search) params.search = search;
+    if (filterTier) params.tier = filterTier;
+    api.get('/admin/customers', { params })
+      .then(r => {
+        if (r.data?.data) {
+          setCustomers(r.data.data);
+          setTotal(r.data.total);
+          setTotalPages(r.data.totalPages);
+        } else {
+          const arr = Array.isArray(r.data) ? r.data : [];
+          setCustomers(arr);
+          setTotal(arr.length);
+          setTotalPages(1);
+        }
       })
       .catch(e => toast.error(e.response?.data?.error || 'Failed to load customers'))
-      .finally(() => { setLoading(false); setTiersLoading(false); });
+      .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, [page, limit, search, filterTier]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleTierChange = (v) => { setFilterTier(v); setPage(1); };
+  const handleLimitChange = (l) => { setLimit(l); setPage(1); };
 
   const handleCreated = (newCustomer) => {
-    setCustomers(prev => [newCustomer, ...prev]);
     setCreating(false);
+    setPage(1);
+    load();
   };
 
   const handleUpdated = (updated) => {
@@ -124,18 +155,12 @@ export default function Customers() {
     setEditingId(null);
   };
 
-  const filtered = customers.filter(c => {
-    const matchSearch = !search || c.company_name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase());
-    const matchTier = !filterTier || c.tier === filterTier;
-    return matchSearch && matchTier;
-  });
-
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Customers</h1>
-          <p className="page-subtitle">{customers.length} customers</p>
+          <p className="page-subtitle">{total} customers</p>
         </div>
         {!creating && (
           <button
@@ -158,18 +183,24 @@ export default function Customers() {
       )}
 
       {/* Filters */}
-      <div className="flex gap-3 mb-4 flex-wrap items-center">
+      <form onSubmit={handleSearch} className="flex gap-3 mb-4 flex-wrap items-center">
         <input
           className="input flex-1 max-w-xs"
           placeholder="Search by name or email…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
         />
-        <select className="select w-36" value={filterTier} onChange={e => setFilterTier(e.target.value)}>
+        <button type="submit" className="btn-secondary btn-sm">Search</button>
+        <select className="select w-36" value={filterTier} onChange={e => handleTierChange(e.target.value)}>
           <option value="">All Tiers</option>
           {tiers.map(t => <option key={t.tier} value={t.tier}>{t.tier}</option>)}
         </select>
-      </div>
+        {(search || filterTier) && (
+          <button type="button" className="btn-secondary btn-sm" onClick={() => { setSearch(''); setSearchInput(''); setFilterTier(''); setPage(1); }}>
+            Clear
+          </button>
+        )}
+      </form>
 
       <div className="table-wrap">
         <table className="table">
@@ -186,9 +217,9 @@ export default function Customers() {
           <tbody>
             {loading ? (
               <tr><td colSpan={6} className="text-center py-8 text-slate-500">Loading…</td></tr>
-            ) : filtered.length === 0 ? (
+            ) : customers.length === 0 ? (
               <tr><td colSpan={6} className="text-center py-8 text-slate-500">No customers found</td></tr>
-            ) : filtered.map(c => (
+            ) : customers.map(c => (
               c.id === editingId ? (
                 <tr key={c.id}>
                   <td colSpan={6} className="p-0">
@@ -225,6 +256,15 @@ export default function Customers() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        limit={limit}
+        onPageChange={setPage}
+        onLimitChange={handleLimitChange}
+      />
     </div>
   );
 }

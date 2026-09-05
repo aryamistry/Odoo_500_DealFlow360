@@ -5,6 +5,7 @@ const express = require('express');
 const pool = require('../db');
 const { authenticate, requireRole } = require('../middleware/auth');
 const { submitForApproval } = require('../services/governance');
+const { getPaginationParams, sendPaginated } = require('../utils/paginate');
 
 const router = express.Router();
 router.use(authenticate);
@@ -33,6 +34,8 @@ async function computeUnitPrice(productId, variantId, priceListId) {
 router.get('/', async (req, res) => {
   try {
     const { status, rep_id, customer_id } = req.query;
+    const { page, limit, offset, isPaginated } = getPaginationParams(req);
+
     let where = [];
     let params = [];
     let i = 1;
@@ -48,21 +51,32 @@ router.get('/', async (req, res) => {
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
+    // Add LIMIT/OFFSET params only when paginating
+    const limitParam  = isPaginated ? `LIMIT $${i++}`  : '';
+    const offsetParam = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
+
     const { rows } = await pool.query(`
       SELECT q.*, c.company_name AS customer_name, u.name AS rep_name,
         COALESCE(
           (SELECT SUM((ql.unit_price*(1-ql.discount_pct/100.0))*ql.quantity) FROM quotation_lines ql WHERE ql.quotation_id=q.id), 0
         ) AS total_amount,
-        (SELECT COUNT(*) FROM quotation_lines ql WHERE ql.quotation_id=q.id) AS line_count
+        (SELECT COUNT(*) FROM quotation_lines ql WHERE ql.quotation_id=q.id) AS line_count,
+        COUNT(*) OVER() AS total_count
       FROM quotations q
       JOIN customers c ON c.id=q.customer_id
       JOIN users u ON u.id=q.sales_rep_id
       ${whereClause}
       ORDER BY q.updated_at DESC
+      ${limitParam} ${offsetParam}
     `, params);
-    res.json(rows);
+
+    const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
+    const clean = rows.map(({ total_count, ...r }) => r);
+    sendPaginated(res, clean, { page, limit, total, isPaginated });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
 
 // ── Create Quotation ──────────────────────────────────────────────────────────
 router.post('/', requireRole('sales_rep', 'sales_manager', 'admin'), async (req, res) => {

@@ -3,24 +3,46 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import Pagination from '../components/Pagination';
 
 export default function ApprovalsList() {
   const [approvals, setApprovals] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api.get('/approvals')
-      .then(r => setApprovals(r.data))
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchApprovals = () => {
+    setLoading(true);
+    api.get('/approvals', { params: { page, limit } })
+      .then(r => {
+        if (r.data && r.data.data) {
+          setApprovals(r.data.data);
+          setTotal(r.data.total);
+          setTotalPages(r.data.totalPages);
+        } else {
+          setApprovals(Array.isArray(r.data) ? r.data : []);
+          setTotal(r.data?.length || 0);
+          setTotalPages(1);
+        }
+      })
       .catch(e => toast.error(e.response?.data?.error || 'Failed'))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { fetchApprovals(); }, [page, limit]);
+
+  const handleLimitChange = (l) => { setLimit(l); setPage(1); };
 
   return (
     <div>
       <div className="page-header">
         <div>
           <h1 className="page-title">Pending Approvals</h1>
-          <p className="page-subtitle">{approvals.length} items requiring action</p>
+          <p className="page-subtitle">{total} items requiring action</p>
         </div>
       </div>
 
@@ -60,6 +82,15 @@ export default function ApprovalsList() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        limit={limit}
+        onPageChange={setPage}
+        onLimitChange={handleLimitChange}
+      />
     </div>
   );
 }
