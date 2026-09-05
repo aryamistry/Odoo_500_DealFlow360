@@ -132,15 +132,19 @@ router.get('/:id', async (req, res) => {
       ORDER BY ql.created_at
     `, [req.params.id, q.customer_id]);
 
-    // Activity log
-    const { rows: activity } = await pool.query(`
+    // Activity log — capped at 50 most recent (B1-activity: log grows unboundedly
+    // over a quotation's lifetime; full history is preserved in DB).
+    const { rows: activityRaw } = await pool.query(`
       SELECT al.*, u.name AS actor_name, cu.company_name AS actor_company
       FROM quotation_activity_log al
       LEFT JOIN users u ON u.id=al.actor_user_id
       LEFT JOIN customers cu ON cu.id=al.actor_customer_id
       WHERE al.quotation_id=$1
-      ORDER BY al.created_at
+      ORDER BY al.created_at DESC
+      LIMIT 50
     `, [req.params.id]);
+    // Reverse so the UI receives chronological order (oldest first).
+    const activity = activityRaw.reverse();
 
     // Approval steps
     const { rows: steps } = await pool.query(`

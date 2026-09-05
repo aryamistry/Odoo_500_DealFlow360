@@ -92,7 +92,8 @@ These rules apply to **every phase** in this project and must be respected by al
 - [x] `server/src/routes/auth.js`:
   - `POST /api/auth/login` — internal staff login (admin, sales_rep, sales_manager, finance)
   - `POST /api/auth/customer/login` — customer portal login
-  - `POST /api/auth/logout` — clears auth cookie
+  - `POST /api/auth/logout` — 
+  clears auth cookie
   - `GET /api/auth/me` — current session user profile
   - `POST /api/auth/signup` — admin user provisioning
 - [x] `client/src/context/AuthContext.jsx` — auth state management, session restoration, role routing

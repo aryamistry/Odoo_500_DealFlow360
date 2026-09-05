@@ -5,6 +5,7 @@ import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
+import { useRefData } from '../context/RefDataContext';
 
 function TierBadge({ tier }) {
   const cls = { Gold: 'badge-approved', Silver: 'badge-pending', Bronze: 'badge-draft' };
@@ -85,9 +86,9 @@ function CustomerForm({ tiers, onSave, onCancel, initial = null }) {
 
 export default function Customers() {
   const { user } = useAuth();
+  const { tiers: tiersRaw, invalidate: invalidateRefData } = useRefData();
+  const tiers = tiersRaw || [];
   const [customers, setCustomers] = useState([]);
-  const [tiers, setTiers] = useState([]);
-  const [tiersLoading, setTiersLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -103,13 +104,8 @@ export default function Customers() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Load tiers once on mount
-  useEffect(() => {
-    api.get('/admin/customer-tiers')
-      .then(res => setTiers(res.data))
-      .catch(() => {})
-      .finally(() => setTiersLoading(false));
-  }, []);
+
+  // Tiers come from RefDataContext (cached 5 min) — no per-mount fetch needed.
 
   const load = () => {
     setLoading(true);
@@ -166,10 +162,8 @@ export default function Customers() {
           <button
             onClick={() => { setCreating(true); setEditingId(null); }}
             className="btn-primary"
-            disabled={tiersLoading}
-            title={tiersLoading ? 'Loading tiers…' : undefined}
           >
-            {tiersLoading ? 'Loading…' : '+ New Customer'}
+            + New Customer
           </button>
         )}
       </div>

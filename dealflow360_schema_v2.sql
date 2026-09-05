@@ -364,3 +364,26 @@ CREATE TABLE platform_settings (
 -- Default seed values
 INSERT INTO platform_settings (key, value, label) VALUES
     ('stalled_deal_days', '7', 'Days before a deal is considered stalled');
+
+-- ============================================================================
+-- Phase 13 — Performance indexes (A1)
+-- Applied via server/src/migrations/phase13_indexes.sql for existing DBs.
+-- Included here so fresh installs get them automatically.
+-- ============================================================================
+
+-- approval_steps: composite for "my pending approvals" queue
+CREATE INDEX IF NOT EXISTS idx_approval_steps_assigned
+  ON approval_steps(assigned_to_user_id, status);
+
+-- subscriptions: composite replaces single-column next_bill_date
+DROP INDEX IF EXISTS idx_subscriptions_next_bill_date;
+CREATE INDEX IF NOT EXISTS idx_subscriptions_billing_due
+  ON subscriptions(status, next_bill_date);
+
+-- quotations: created_at for period reporting (from/to filter)
+CREATE INDEX IF NOT EXISTS idx_quotations_created_at
+  ON quotations(created_at);
+
+-- negotiation_requests: partial index — only 'open' requests
+CREATE INDEX IF NOT EXISTS idx_negotiation_open
+  ON negotiation_requests(status) WHERE status = 'open';

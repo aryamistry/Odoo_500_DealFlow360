@@ -3,25 +3,30 @@ import { useState, useEffect } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 import Customers from '../Customers';
+import { useRefData } from '../../context/RefDataContext';
 
 const TABS = ['Customers', 'Categories', 'Customer Tiers', 'Approval Rules', 'Warehouses', 'Subscription Plans', 'Products', 'Price Lists', 'Upsell Rules', 'Platform Settings'];
 
 // ── Categories ────────────────────────────────────────────────────────────────
 function CategoriesTab() {
-  const [cats, setCats] = useState([]);
+  // Read from cache; only re-fetched after mutations via invalidate('categories')
+  const { categories: cachedCats, invalidate } = useRefData();
+  const cats = cachedCats || [];
   const [form, setForm] = useState({ name: '', max_discount_pct: '' });
 
-  const load = () => api.get('/admin/categories').then(r => setCats(r.data));
-  useEffect(() => { load(); }, []);
-
   const create = async () => {
-    try { await api.post('/admin/categories', form); toast.success('Created'); setForm({ name: '', max_discount_pct: '' }); load(); }
+    try {
+      await api.post('/admin/categories', form);
+      toast.success('Created');
+      setForm({ name: '', max_discount_pct: '' });
+      invalidate('categories'); // drop cache so next read re-fetches
+    }
     catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const del = async (id) => {
     if (!confirm('Delete?')) return;
-    try { await api.delete(`/admin/categories/${id}`); toast.success('Deleted'); load(); }
+    try { await api.delete(`/admin/categories/${id}`); toast.success('Deleted'); invalidate('categories'); }
     catch (e) { toast.error('Failed'); }
   };
 
@@ -42,13 +47,16 @@ function CategoriesTab() {
 
 // ── Customer Tiers ────────────────────────────────────────────────────────────
 function TiersTab() {
-  const [tiers, setTiers] = useState([]);
+  const { tiers: cachedTiers, invalidate } = useRefData();
+  const tiers = cachedTiers || [];
   const [editing, setEditing] = useState({});
-  const load = () => api.get('/admin/customer-tiers').then(r => setTiers(r.data));
-  useEffect(() => { load(); }, []);
 
   const save = async (tier) => {
-    try { await api.patch(`/admin/customer-tiers/${tier}`, { max_discount_pct: parseFloat(editing[tier]) }); toast.success('Updated'); load(); }
+    try {
+      await api.patch(`/admin/customer-tiers/${tier}`, { max_discount_pct: parseFloat(editing[tier]) });
+      toast.success('Updated');
+      invalidate('tiers');
+    }
     catch (e) { toast.error('Failed'); }
   };
 
@@ -64,12 +72,11 @@ function TiersTab() {
 
 // ── Approval Rules ────────────────────────────────────────────────────────────
 function ApprovalRulesTab() {
-  const [rules, setRules] = useState([]);
-  const load = () => api.get('/admin/approval-rules').then(r => setRules(r.data));
-  useEffect(() => { load(); }, []);
+  const { approvalRules: cachedRules, invalidate } = useRefData();
+  const rules = cachedRules || [];
 
   const update = async (id, field, val) => {
-    try { await api.patch(`/admin/approval-rules/${id}`, { [field]: val }); toast.success('Updated'); load(); }
+    try { await api.patch(`/admin/approval-rules/${id}`, { [field]: val }); toast.success('Updated'); invalidate('approvalRules'); }
     catch (e) { toast.error('Failed'); }
   };
 
@@ -592,7 +599,8 @@ function WarehousesTab() {
 
 // ── Subscription Plans ────────────────────────────────────────────────────────
 function SubPlansTab() {
-  const [plans, setPlans] = useState([]);
+  const { subscriptionPlans: cachedPlans, invalidate } = useRefData();
+  const plans = cachedPlans || [];
   const [form, setForm] = useState({
     name: '',
     billing_cycle: 'monthly',
@@ -600,8 +608,6 @@ function SubPlansTab() {
     cancellation_rule: 'end_of_cycle',
     refund_rule: 'none',
   });
-  const load = () => api.get('/admin/subscription-plans').then(r => setPlans(r.data));
-  useEffect(() => { load(); }, []);
 
   const create = async () => {
     if (!form.name.trim()) return toast.error('Plan name is required');
@@ -615,7 +621,7 @@ function SubPlansTab() {
         cancellation_rule: 'end_of_cycle',
         refund_rule: 'none',
       });
-      load();
+      invalidate('subscriptionPlans');
     } catch (e) {
       toast.error(e.response?.data?.error || 'Failed to create plan');
     }
@@ -738,14 +744,14 @@ function SubPlansTab() {
 
 // ── Products ──────────────────────────────────────────────────────────────────
 function ProductsTab() {
+  const { categories: cachedCats, subscriptionPlans: cachedPlans } = useRefData();
   const [products, setProducts] = useState([]);
-  const [cats, setCats] = useState([]);
-  const [plans, setPlans] = useState([]);
+  const cats = cachedCats || [];
+  const plans = cachedPlans || [];
   const [form, setForm] = useState({ name: '', category_id: '', price: '', cost_price: '', tax_pct: 18, subscription_plan_id: '' });
   const load = () => {
     api.get('/admin/products').then(r => setProducts(r.data));
-    api.get('/admin/categories').then(r => setCats(r.data));
-    api.get('/admin/subscription-plans').then(r => setPlans(r.data));
+    // cats and plans come from RefDataContext — no per-mount fetch needed
   };
   useEffect(() => { load(); }, []);
 
@@ -811,14 +817,13 @@ function ProductsTab() {
 
 // ── Price Lists ───────────────────────────────────────────────────────────────
 function PriceListsTab() {
-  const [lists, setLists] = useState([]);
+  const { priceLists: cachedLists, invalidate } = useRefData();
+  const lists = cachedLists || [];
   const [editing, setEditing] = useState({});
-  const load = () => api.get('/admin/price-lists').then(r => setLists(r.data));
-  useEffect(() => { load(); }, []);
 
   const save = async (id) => {
     const ed = editing[id] || {};
-    try { await api.patch(`/admin/price-lists/${id}`, ed); toast.success('Updated'); load(); }
+    try { await api.patch(`/admin/price-lists/${id}`, ed); toast.success('Updated'); invalidate('priceLists'); }
     catch (e) { toast.error('Failed'); }
   };
 

@@ -2,6 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { RefDataProvider } from './context/RefDataContext';
 
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -74,10 +75,12 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Toaster position="top-right" toastOptions={{ className: 'bg-slate-800 text-white border border-slate-700' }} />
-        <AppRoutes />
-      </BrowserRouter>
+      <RefDataProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Toaster position="top-right" toastOptions={{ className: 'bg-slate-800 text-white border border-slate-700' }} />
+          <AppRoutes />
+        </BrowserRouter>
+      </RefDataProvider>
     </AuthProvider>
   );
 }

@@ -37,37 +37,36 @@ router.get('/deal-health/stalled', async (_req, res) => {
 });
 
 // ── Discount Anomalies ────────────────────────────────────────────────────────
+// A2 fix: removed dead rep_avg CTE + LATERAL-per-active-line pattern.
+// The CTE now computes one avg_hist_discount per rep (DISTINCT + window AVG),
+// and the final SELECT joins against it — one aggregation pass instead of
+// one correlated sub-scan per active line.
 router.get('/deal-health/discount-anomalies', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
       WITH rep_avg AS (
-        SELECT ql.quotation_id, q.sales_rep_id,
+        SELECT DISTINCT q.sales_rep_id,
                AVG(ql.discount_pct) OVER (PARTITION BY q.sales_rep_id) AS avg_hist_discount
         FROM quotation_lines ql
-        JOIN quotations q ON q.id=ql.quotation_id
-        WHERE q.status='confirmed'
+        JOIN quotations q ON q.id = ql.quotation_id
+        WHERE q.status = 'confirmed'
       ),
       active_lines AS (
         SELECT ql.*, q.sales_rep_id, q.quote_number, u.name AS rep_name,
                p.name AS product_name, c.company_name AS customer_name
         FROM quotation_lines ql
-        JOIN quotations q ON q.id=ql.quotation_id
-        JOIN users u ON u.id=q.sales_rep_id
-        JOIN customers c ON c.id=q.customer_id
-        JOIN products p ON p.id=ql.product_id
+        JOIN quotations q ON q.id = ql.quotation_id
+        JOIN users u ON u.id = q.sales_rep_id
+        JOIN customers c ON c.id = q.customer_id
+        JOIN products p ON p.id = ql.product_id
         WHERE q.status NOT IN ('confirmed','rejected')
       )
       SELECT al.id AS line_id, al.quote_number, al.rep_name, al.product_name, al.customer_name,
              al.discount_pct, ra.avg_hist_discount,
              al.discount_pct - COALESCE(ra.avg_hist_discount, 0) AS anomaly_delta
       FROM active_lines al
-      LEFT JOIN LATERAL (
-        SELECT AVG(ql2.discount_pct) AS avg_hist_discount
-        FROM quotation_lines ql2
-        JOIN quotations q2 ON q2.id=ql2.quotation_id
-        WHERE q2.sales_rep_id=al.sales_rep_id AND q2.status='confirmed'
-      ) ra ON true
-      WHERE al.discount_pct > COALESCE(ra.avg_hist_discount, 0) + 5  -- anomaly threshold: 5% above avg
+      LEFT JOIN rep_avg ra ON ra.sales_rep_id = al.sales_rep_id
+      WHERE al.discount_pct > COALESCE(ra.avg_hist_discount, 0) + 5
       ORDER BY anomaly_delta DESC
     `);
     res.json(rows);

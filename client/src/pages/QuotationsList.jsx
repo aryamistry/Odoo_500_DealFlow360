@@ -1,10 +1,11 @@
-﻿// src/pages/QuotationsList.jsx
+// src/pages/QuotationsList.jsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 import Pagination from '../components/Pagination';
+import { useRefData } from '../context/RefDataContext';
 
 const STATUSES = ['', 'draft', 'pending_approval', 'approved', 'under_negotiation', 'confirmed', 'rejected'];
 
@@ -18,6 +19,8 @@ function StatusBadge({ status }) {
 
 export default function QuotationsList() {
   const { user } = useAuth();
+  const { tiers: tiersRaw } = useRefData();
+  const tiers = tiersRaw || [];
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [quotes, setQuotes] = useState([]);
@@ -26,7 +29,6 @@ export default function QuotationsList() {
   const [customers, setCustomers] = useState([]);
   const [creating, setCreating] = useState(searchParams.get('new') === 'true');
   const [newCustomerId, setNewCustomerId] = useState('');
-  const [tiers, setTiers] = useState([]);
   const [showNewCustModal, setShowNewCustModal] = useState(false);
   const [newCustForm, setNewCustForm] = useState({ company_name: '', email: '', tier: '', password: '' });
   const [submittingCust, setSubmittingCust] = useState(false);
@@ -72,16 +74,7 @@ export default function QuotationsList() {
         setCustomers(Array.isArray(data) ? data : []);
       })
       .catch(() => {});
-
-    // Load available customer tiers from database
-    api.get('/admin/customer-tiers')
-      .then(r => {
-        setTiers(r.data);
-        if (r.data?.length > 0) {
-          setNewCustForm(f => ({ ...f, tier: f.tier || r.data[0].tier }));
-        }
-      })
-      .catch(() => {});
+    // Tiers come from RefDataContext (cached) — no separate fetch needed.
   }, []);
 
   const handleCreateCustomerInline = async (e) => {
