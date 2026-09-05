@@ -272,6 +272,7 @@ CREATE TABLE subscriptions (
     customer_id         BIGINT NOT NULL REFERENCES customers(id),
     status              subscription_status NOT NULL DEFAULT 'active',
     next_bill_date      DATE NOT NULL,
+    quantity_override   INTEGER CHECK (quantity_override > 0), -- overrides quotation_lines.quantity for billing after mid-cycle change
     started_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     cancelled_at        TIMESTAMPTZ
 );
@@ -349,3 +350,17 @@ INSERT INTO approval_rules (risk_level, requires_manager_approval, requires_fina
     ('low', false, false),
     ('medium', true, false),
     ('high', true, true);
+
+-- ----------------------------------------------------------------------------
+-- platform_settings — admin-configurable key/value system settings (Gap 4)
+-- ----------------------------------------------------------------------------
+CREATE TABLE platform_settings (
+    key     VARCHAR(100) PRIMARY KEY,
+    value   TEXT NOT NULL,
+    label   VARCHAR(200),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Default seed values
+INSERT INTO platform_settings (key, value, label) VALUES
+    ('stalled_deal_days', '7', 'Days before a deal is considered stalled');

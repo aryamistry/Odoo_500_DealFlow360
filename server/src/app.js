@@ -35,6 +35,7 @@ app.use('/api/admin/products',           require('./routes/admin/products'));
 app.use('/api/admin/price-lists',        require('./routes/admin/price_lists'));
 app.use('/api/admin/upsell-rules',       require('./routes/admin/upsell_rules'));
 app.use('/api/admin/customers',          require('./routes/admin/customers'));
+app.use('/api/admin/platform-settings',  require('./routes/admin/platform_settings'));
 
 // Analytics & Reports
 app.use('/api',                   require('./routes/analytics'));

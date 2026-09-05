@@ -8,11 +8,18 @@ const { authenticate, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(authenticate, requireRole('admin', 'sales_manager', 'finance'));
 
-const STALLED_DAYS = 7; // App constant — not a DB config row per PRD
-
 // ── Stalled Deals ─────────────────────────────────────────────────────────────
 router.get('/deal-health/stalled', async (_req, res) => {
   try {
+    // Gap 4: read stalled_deal_days from platform_settings (admin-configurable)
+    let stalledDays = 7;
+    try {
+      const { rows: setting } = await pool.query(
+        "SELECT value FROM platform_settings WHERE key='stalled_deal_days'"
+      );
+      if (setting.length > 0) stalledDays = Math.max(1, parseInt(setting[0].value) || 7);
+    } catch (_) { /* table may not exist in older deploys, fall back to 7 */ }
+
     const { rows } = await pool.query(`
       SELECT q.id, q.quote_number, q.status, q.updated_at, q.risk_level,
              c.company_name AS customer_name, u.name AS rep_name,
@@ -22,7 +29,7 @@ router.get('/deal-health/stalled', async (_req, res) => {
       JOIN customers c ON c.id=q.customer_id
       JOIN users u ON u.id=q.sales_rep_id
       WHERE q.status NOT IN ('confirmed','rejected')
-        AND q.updated_at < now() - INTERVAL '${STALLED_DAYS} days'
+        AND q.updated_at < now() - INTERVAL '${stalledDays} days'
       ORDER BY q.updated_at ASC
     `);
     res.json(rows);

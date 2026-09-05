@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
 export default function Reports() {
@@ -59,6 +60,26 @@ export default function Reports() {
     toast.success('CSV exported');
   };
 
+  const exportXLSX = () => {
+    if (data.length === 0) return toast.error('No data to export');
+    const rows = data.map(r => ({
+      'Status': r.status || '',
+      'Risk Level': r.risk_level || '',
+      'Quote Count': parseInt(r.quote_count || 0),
+      'Total Revenue (₹)': parseFloat(r.total_revenue || 0),
+      'Total Margin (₹)': parseFloat(r.total_margin || 0),
+      'Avg Discount (%)': parseFloat(r.avg_discount_pct || 0),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    // Auto-fit column widths
+    const colWidths = Object.keys(rows[0]).map(k => ({ wch: Math.max(k.length, 14) }));
+    ws['!cols'] = colWidths;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DealFlow360 Report');
+    XLSX.writeFile(wb, `dealflow360_report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success('XLSX exported');
+  };
+
   const exportPDF = () => {
     window.print();
   };
@@ -72,7 +93,8 @@ export default function Reports() {
         </div>
         <div className="flex gap-2">
           <button onClick={exportCSV} className="btn-secondary btn-sm">⬇ Export CSV</button>
-          <button onClick={exportPDF} className="btn-secondary btn-sm">🖨 Export PDF / Print</button>
+          <button onClick={exportXLSX} className="btn-secondary btn-sm">📊 Export XLSX</button>
+          <button onClick={exportPDF} className="btn-secondary btn-sm">🖨 Print / PDF</button>
         </div>
       </div>
 

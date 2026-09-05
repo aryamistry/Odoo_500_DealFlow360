@@ -4,7 +4,7 @@ import api from '../../api/client';
 import toast from 'react-hot-toast';
 import Customers from '../Customers';
 
-const TABS = ['Customers', 'Categories', 'Customer Tiers', 'Approval Rules', 'Warehouses', 'Subscription Plans', 'Products', 'Price Lists', 'Upsell Rules'];
+const TABS = ['Customers', 'Categories', 'Customer Tiers', 'Approval Rules', 'Warehouses', 'Subscription Plans', 'Products', 'Price Lists', 'Upsell Rules', 'Platform Settings'];
 
 // ── Categories ────────────────────────────────────────────────────────────────
 function CategoriesTab() {
@@ -776,6 +776,83 @@ function UpsellRulesTab() {
   );
 }
 
+// ── Platform Settings (Gap 4) ────────────────────────────────────────────
+function PlatformSettingsTab() {
+  const [settings, setSettings] = useState([]);
+  const [editing, setEditing] = useState({});
+  const load = () => api.get('/admin/platform-settings').then(r => setSettings(r.data));
+  useEffect(() => { load(); }, []);
+
+  const save = async (key) => {
+    const val = editing[key];
+    if (val === undefined || val === null || String(val).trim() === '') {
+      return toast.error('Value cannot be empty');
+    }
+    try {
+      await api.patch(`/admin/platform-settings/${key}`, { value: String(val).trim() });
+      toast.success(`Setting "${key}" updated`);
+      setEditing(ed => { const c = { ...ed }; delete c[key]; return c; });
+      load();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update'); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-400">Configure system-wide settings. Changes take effect immediately — no server restart required.</p>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Setting</th>
+              <th>Description</th>
+              <th className="w-48">Current Value</th>
+              <th className="text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {settings.length === 0 ? (
+              <tr><td colSpan="4" className="text-center py-6 text-slate-500">No settings found. Ensure the <code>platform_settings</code> table is seeded.</td></tr>
+            ) : settings.map(s => {
+              const val = editing[s.key] !== undefined ? editing[s.key] : s.value;
+              const isDirty = editing[s.key] !== undefined && editing[s.key] !== s.value;
+              return (
+                <tr key={s.key} className={isDirty ? 'bg-indigo-950/20' : ''}>
+                  <td><code className="text-indigo-300 text-xs bg-slate-900 px-2 py-0.5 rounded">{s.key}</code></td>
+                  <td className="text-slate-400 text-sm">{s.label || '—'}</td>
+                  <td>
+                    <input
+                      className="input py-1 text-sm font-mono w-full"
+                      value={val}
+                      onChange={e => setEditing(ed => ({ ...ed, [s.key]: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => save(s.key)}
+                        className={`btn-sm ${isDirty ? 'btn-primary' : 'btn-secondary text-slate-400'}`}
+                        disabled={!isDirty}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="p-4 rounded-xl bg-slate-950 border border-slate-800">
+        <h4 className="text-sm font-semibold text-slate-300 mb-2">Setting Reference</h4>
+        <ul className="text-xs text-slate-400 space-y-1">
+          <li><code className="text-indigo-300">stalled_deal_days</code> — Number of days of inactivity before a deal appears in the Stalled Deals dashboard. Default: 7.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Admin Settings Page ──────────────────────────────────────────────────
 export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState('Categories');
@@ -790,6 +867,7 @@ export default function AdminSettings() {
     'Products': ProductsTab,
     'Price Lists': PriceListsTab,
     'Upsell Rules': UpsellRulesTab,
+    'Platform Settings': PlatformSettingsTab,
   };
 
   const ActiveComponent = TabComponents[activeTab];

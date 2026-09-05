@@ -60,28 +60,81 @@ router.get('/subscriptions/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-// Mid-cycle subscription modification
+// Mid-cycle subscription modification with proration
 router.patch('/subscriptions/:id', requireRole('admin', 'finance', 'sales_manager'), async (req, res) => {
   const { next_bill_date, quantity_override, reason } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows: [sub] } = await client.query('SELECT * FROM subscriptions WHERE id=$1', [req.params.id]);
+
+    // Fetch subscription with plan details (proration_rule, unit_price)
+    const { rows: [sub] } = await client.query(`
+      SELECT s.*, ql.unit_price, ql.quantity AS original_quantity, ql.discount_pct,
+             sp.billing_cycle, sp.proration_rule
+      FROM subscriptions s
+      JOIN quotation_lines ql ON ql.id = s.quotation_line_id
+      JOIN products p ON p.id = ql.product_id
+      LEFT JOIN subscription_plans sp ON sp.id = p.subscription_plan_id
+      WHERE s.id=$1
+    `, [req.params.id]);
     if (!sub) return res.status(404).json({ error: 'Not found' });
     if (sub.status === 'cancelled') return res.status(400).json({ error: 'Cannot modify a cancelled subscription' });
 
     const updates = [];
     const params = [];
     let i = 1;
+
+    // ── Gap 1: Mid-cycle proration on quantity_override ────────────────────
+    if (quantity_override !== undefined && quantity_override !== null) {
+      const newQty = parseInt(quantity_override);
+      if (isNaN(newQty) || newQty < 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'quantity_override must be a non-negative integer' });
+      }
+      const oldQty = parseInt(sub.original_quantity) || 1;
+      const unitPrice = parseFloat(sub.unit_price) || 0;
+      const discountPct = parseFloat(sub.discount_pct) || 0;
+      const effectiveUnitPrice = unitPrice * (1 - discountPct / 100);
+
+      // Calculate days remaining in current billing cycle
+      const now = new Date();
+      const nextBill = new Date(sub.next_bill_date);
+      let cycleDays = 30; // default monthly
+      if (sub.billing_cycle === 'quarterly') cycleDays = 91;
+      else if (sub.billing_cycle === 'yearly') cycleDays = 365;
+      const daysRemaining = Math.max(0, Math.round((nextBill - now) / (1000 * 60 * 60 * 24)));
+      const proratedFraction = cycleDays > 0 ? daysRemaining / cycleDays : 0;
+
+      const qtyDelta = newQty - oldQty;
+      const proratedAmount = Math.abs(qtyDelta) * effectiveUnitPrice * proratedFraction;
+
+      if (proratedAmount > 0) {
+        const txType = qtyDelta > 0 ? 'payment' : 'credit_note';
+        const txReason = reason ||
+          `Mid-cycle ${qtyDelta > 0 ? 'upgrade' : 'downgrade'}: qty ${oldQty} → ${newQty} (${daysRemaining}/${cycleDays} days remaining)`;
+        await client.query(
+          `INSERT INTO payment_transactions (type, subscription_id, amount, reason)
+           VALUES ($1, $2, $3, $4)`,
+          [txType, req.params.id, proratedAmount.toFixed(2), txReason]
+        );
+      }
+
+      // Store updated quantity on subscription row
+      updates.push(`quantity_override=$${i++}`);
+      params.push(newQty);
+    }
+
     if (next_bill_date) { updates.push(`next_bill_date=$${i++}`); params.push(next_bill_date); }
-    if (updates.length === 0) return res.status(400).json({ error: 'Provide next_bill_date to update' });
+
+    if (updates.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Provide next_bill_date or quantity_override to update' });
+    }
     params.push(req.params.id);
     await client.query(`UPDATE subscriptions SET ${updates.join(',')} WHERE id=$${i}`, params);
 
-    // Bug 2 fix: Do NOT insert a payment_transaction with amount=0 — schema enforces amount > 0.
-    // A reschedule with a reason is informational only. No financial record is created unless
-    // a real non-zero credit_amount is explicitly specified by the caller.
-    if (req.body.credit_amount && parseFloat(req.body.credit_amount) > 0) {
+    // Legacy explicit credit_amount (kept for backward compat)
+    if (req.body.credit_amount && parseFloat(req.body.credit_amount) > 0 && quantity_override === undefined) {
       await client.query(
         `INSERT INTO payment_transactions (type, subscription_id, amount, reason)
          VALUES ('credit_note', $1, $2, $3)`,
@@ -97,32 +150,63 @@ router.patch('/subscriptions/:id', requireRole('admin', 'finance', 'sales_manage
   } finally { client.release(); }
 });
 
-// Cancel subscription
-
+// Cancel subscription — Gap 2: auto-compute refund from refund_rule
 router.post('/subscriptions/:id/cancel', requireRole('admin', 'finance', 'sales_manager'), async (req, res) => {
   const { reason } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows: [sub] } = await client.query('SELECT * FROM subscriptions WHERE id=$1', [req.params.id]);
+
+    // Fetch subscription with plan refund_rule and last invoice amount
+    const { rows: [sub] } = await client.query(`
+      SELECT s.*, sp.refund_rule, sp.billing_cycle
+      FROM subscriptions s
+      JOIN quotation_lines ql ON ql.id = s.quotation_line_id
+      JOIN products p ON p.id = ql.product_id
+      LEFT JOIN subscription_plans sp ON sp.id = p.subscription_plan_id
+      WHERE s.id=$1
+    `, [req.params.id]);
     if (!sub) return res.status(404).json({ error: 'Not found' });
+    if (sub.status === 'cancelled') return res.status(400).json({ error: 'Already cancelled' });
 
     await client.query(
       "UPDATE subscriptions SET status='cancelled', cancelled_at=now() WHERE id=$1",
       [req.params.id]
     );
 
-    // Insert credit note if applicable (per cancellation_rule — simplified: always create if reason given)
-    if (reason) {
-      const { rows: [lastInvoice] } = await client.query(
-        'SELECT * FROM invoices WHERE subscription_id=$1 ORDER BY issued_at DESC LIMIT 1',
-        [req.params.id]
-      );
-      if (lastInvoice) {
+    // ── Gap 2: Auto-compute refund/credit from refund_rule ─────────────────
+    const { rows: [lastInvoice] } = await client.query(
+      'SELECT * FROM invoices WHERE subscription_id=$1 ORDER BY issued_at DESC LIMIT 1',
+      [req.params.id]
+    );
+
+    if (lastInvoice) {
+      const invoiceAmount = parseFloat(lastInvoice.amount) || 0;
+      const refundRule = (sub.refund_rule || 'none').toLowerCase().trim();
+      let creditAmount = 0;
+
+      if (refundRule === 'full') {
+        // Full refund of the last invoice
+        creditAmount = invoiceAmount;
+      } else if (refundRule === 'prorated') {
+        // Prorated: refund proportional to unused days in the billing cycle
+        const now = new Date();
+        const nextBill = new Date(sub.next_bill_date);
+        let cycleDays = 30;
+        if (sub.billing_cycle === 'quarterly') cycleDays = 91;
+        else if (sub.billing_cycle === 'yearly') cycleDays = 365;
+        const daysRemaining = Math.max(0, Math.round((nextBill - now) / (1000 * 60 * 60 * 24)));
+        const fraction = cycleDays > 0 ? daysRemaining / cycleDays : 0;
+        creditAmount = invoiceAmount * fraction;
+      }
+      // 'none' or unknown → creditAmount stays 0
+
+      if (creditAmount > 0.01) {
+        const txReason = reason || `Cancellation refund (${sub.refund_rule || 'prorated'} rule)`;
         await client.query(
           `INSERT INTO payment_transactions (type, subscription_id, amount, reason)
-           VALUES ('credit_note',$1,$2,$3)`,
-          [req.params.id, lastInvoice.amount, reason]
+           VALUES ('credit_note', $1, $2, $3)`,
+          [req.params.id, creditAmount.toFixed(2), txReason]
         );
       }
     }
