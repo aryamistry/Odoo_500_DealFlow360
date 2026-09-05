@@ -117,6 +117,20 @@ router.post('/deal-health/nudge/:quotationId', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+// ── Report Filter Options ───────────────────────────────────────────────────
+router.get('/reports/filter-options', async (_req, res) => {
+  try {
+    const [reps, categories] = await Promise.all([
+      pool.query("SELECT id, name, role FROM users WHERE role IN ('sales_rep', 'sales_manager') ORDER BY name"),
+      pool.query('SELECT id, name FROM categories ORDER BY name'),
+    ]);
+    res.json({
+      reps: reps.rows,
+      categories: categories.rows,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 router.get('/reports', async (req, res) => {
   try {

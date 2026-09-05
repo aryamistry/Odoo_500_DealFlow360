@@ -7,17 +7,31 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 export default function Reports() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ from: '', to: '', status: '' });
+  const [filterOptions, setFilterOptions] = useState({ reps: [], categories: [] });
+  const [filters, setFilters] = useState({ from: '', to: '', status: '', rep_id: '', category_id: '' });
+
+  const loadFilterOptions = () => {
+    api.get('/reports/filter-options')
+      .then(r => setFilterOptions(r.data))
+      .catch(() => {});
+  };
 
   const fetchReport = () => {
     setLoading(true);
-    api.get('/reports', { params: filters })
+    const params = {};
+    Object.keys(filters).forEach(k => {
+      if (filters[k]) params[k] = filters[k];
+    });
+    api.get('/reports', { params })
       .then(r => setData(r.data))
       .catch(() => toast.error('Failed'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchReport(); }, []);
+  useEffect(() => {
+    loadFilterOptions();
+    fetchReport();
+  }, []);
 
   const totalRevenue = data.reduce((s, r) => s + parseFloat(r.total_revenue || 0), 0);
   const totalMargin = data.reduce((s, r) => s + parseFloat(r.total_margin || 0), 0);
@@ -45,21 +59,31 @@ export default function Reports() {
     toast.success('CSV exported');
   };
 
+  const exportPDF = () => {
+    window.print();
+  };
+
   return (
     <div>
-      <div className="page-header">
-        <h1 className="page-title">Reports</h1>
-        <button onClick={exportCSV} className="btn-secondary">⬇ Export CSV</button>
+      <div className="page-header flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h1 className="page-title">Executive Reports & Analytics</h1>
+          <p className="text-xs text-slate-400 mt-1">Cross-pipeline revenue, blended margin, and discount governance metrics</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={exportCSV} className="btn-secondary btn-sm">⬇ Export CSV</button>
+          <button onClick={exportPDF} className="btn-secondary btn-sm">🖨 Export PDF / Print</button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="card mb-6 flex gap-4 items-end flex-wrap">
+      <div className="card mb-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
         <div className="form-group">
-          <label className="label">From</label>
+          <label className="label">From Date</label>
           <input type="date" className="input" value={filters.from} onChange={e => setFilters(f => ({...f, from: e.target.value}))} />
         </div>
         <div className="form-group">
-          <label className="label">To</label>
+          <label className="label">To Date</label>
           <input type="date" className="input" value={filters.to} onChange={e => setFilters(f => ({...f, to: e.target.value}))} />
         </div>
         <div className="form-group">
@@ -69,7 +93,27 @@ export default function Reports() {
             {['draft','pending_approval','approved','confirmed','rejected'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <button onClick={fetchReport} className="btn-primary">Apply Filters</button>
+        <div className="form-group">
+          <label className="label">Sales Rep / Team</label>
+          <select className="select" value={filters.rep_id} onChange={e => setFilters(f => ({...f, rep_id: e.target.value}))}>
+            <option value="">All Sales Reps</option>
+            {filterOptions.reps.map(r => (
+              <option key={r.id} value={r.id}>{r.name} ({r.role})</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="label">Category</label>
+          <div className="flex gap-2">
+            <select className="select flex-1" value={filters.category_id} onChange={e => setFilters(f => ({...f, category_id: e.target.value}))}>
+              <option value="">All Categories</option>
+              {filterOptions.categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button onClick={fetchReport} className="btn-primary whitespace-nowrap">Filter</button>
+          </div>
+        </div>
       </div>
 
       {/* Summary */}
