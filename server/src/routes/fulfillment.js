@@ -32,6 +32,9 @@ router.get('/', async (req, res) => {
 
 // ── Fulfillment Detail ────────────────────────────────────────────────────────
 router.get('/:quotationId', async (req, res) => {
+  const qId = parseInt(req.params.quotationId, 10);
+  if (isNaN(qId)) return res.status(400).json({ error: 'Invalid quotation ID' });
+
   try {
     const { rows: lines } = await pool.query(`
       SELECT ql.id AS line_id, p.name AS product_name, ql.quantity AS ordered_qty,
@@ -52,16 +55,19 @@ router.get('/:quotationId', async (req, res) => {
       WHERE ql.quotation_id=$1
       GROUP BY ql.id, p.name, ql.quantity
       ORDER BY ql.id
-    `, [req.params.quotationId]);
+    `, [qId]);
 
-    res.json({ quotation_id: req.params.quotationId, lines });
+    res.json({ quotation_id: qId, lines });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
 // ── Trigger Split ─────────────────────────────────────────────────────────────
 router.post('/:quotationId/split', requireRole('admin', 'sales_manager', 'finance'), async (req, res) => {
+  const qId = parseInt(req.params.quotationId, 10);
+  if (isNaN(qId)) return res.status(400).json({ error: 'Invalid quotation ID' });
+
   try {
-    const result = await splitFulfillment(parseInt(req.params.quotationId));
+    const result = await splitFulfillment(qId);
     res.json(result);
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });

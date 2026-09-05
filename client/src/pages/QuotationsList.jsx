@@ -24,6 +24,7 @@ export default function QuotationsList() {
   const [status, setStatus] = useState('');
   const [customers, setCustomers] = useState([]);
   const [creating, setCreating] = useState(searchParams.get('new') === 'true');
+  const [newCustomerId, setNewCustomerId] = useState('');
   const [tiers, setTiers] = useState([]);
   const [showNewCustModal, setShowNewCustModal] = useState(false);
   const [newCustForm, setNewCustForm] = useState({ company_name: '', email: '', tier: '', password: '' });
