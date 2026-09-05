@@ -63,7 +63,7 @@ Deliverables (§8).
 
 ## Phase 1 — Auth & Roles & Customer Management
 
-**Status:** ⚠️ Auth done; Customer Management NOT built (see Audit Note #1)
+**Status:** ✅ Done, verified (Customer Management fully built via Phase 12.1)
 
 **Tables:** `users`, `customers`
 
@@ -191,7 +191,7 @@ Submitted/Returned/Resubmitted correctly.
 
 ## Phase 6 — Fulfillment & Warehouse Split
 
-**Status:** ⚠️ Split/override/consolidate done; `shipped_at` never written (see Audit Note #4)
+**Status:** ✅ Done, verified (Split/override/consolidate + `shipped_at` stamping verified)
 
 **Tables:** `warehouse_stock`, `fulfillment_lines`, `quotation_lines`
 
@@ -216,7 +216,7 @@ splitting across two warehouses when one alone can't cover it.
 
 ## Phase 7 — Hybrid Billing (One-Time + Recurring)
 
-**Status:** ⚠️ Invoice split done; mid-cycle reschedule-with-reason crashes (see Audit Note #3)
+**Status:** ✅ Done, verified (Invoice split + mid-cycle reschedule verified)
 
 **Tables:** `subscriptions`, `invoices`
 
@@ -259,7 +259,7 @@ correctly.
 
 ## Phase 9 — Customer Portal Negotiation & Reapproval
 
-**Status:** ❌ Negotiation submit works; resolve path has a status bug that blocks confirmation (see Audit Note #2)
+**Status:** ✅ Done, verified (Negotiation submit & resolve with automatic reapproval verified)
 
 **Tables:** `negotiation_requests`, `quotation_activity_log`, back into Phase 5's
 governance service
@@ -284,7 +284,7 @@ sends the quote back for approval automatically.
 
 ## Phase 10 — Deal Health & Reporting
 
-**Status:** ⚠️ Stalled + anomaly queries correct; Delivery Slippage is dead code (depends on Phase 6 gap)
+**Status:** ✅ Done, verified (Stalled deals, anomalies, Delivery Slippage, and PDF/CSV export verified)
 
 **Tables:** all of the above, read-only aggregate queries — **no new tables**
 
@@ -308,7 +308,7 @@ logs an activity row; reporting filters return correct filtered counts.
 
 ## Phase 11 — Demo & Deliverables
 
-**Status:** ⚠️ Seed/accounts ready; the 2 required demo flows will hit Audit Note #1 and #2 live
+**Status:** ✅ Done, verified (See `DEMO_DELIVERABLES.md` and automated demo runner `test_e2e_demo_flows.js`)
 
 - One-page architecture diagram (entities + module boundaries — can be generated
   directly from the v2 schema's table list)

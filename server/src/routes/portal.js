@@ -114,9 +114,13 @@ router.post('/quotations/:id/confirm', async (req, res) => {
 
     await client.query('COMMIT');
 
-    // Kick off fulfillment + billing asynchronously
-    splitFulfillment(parseInt(req.params.id)).catch(e => console.error('Fulfillment split error:', e));
-    createInvoices(parseInt(req.params.id), req.user.customerId).catch(e => console.error('Billing error:', e));
+    // Kick off fulfillment + billing synchronously before responding
+    try {
+      await splitFulfillment(parseInt(req.params.id));
+      await createInvoices(parseInt(req.params.id), req.user.customerId);
+    } catch (e) {
+      console.error('Post-confirmation processing error:', e);
+    }
 
     res.json({ message: 'Quotation confirmed' });
   } catch (err) {
