@@ -338,6 +338,14 @@ Each is small and independently shippable.
   replacing the `// Simple hack` comment and its scrape-from-quotations logic entirely
 - **Verify:** a brand-new company can be created in any tier and immediately used to
   build a quotation, without any prior quotation existing for it
+- **Follow-up (minor, cosmetic):** `Customers.jsx`'s tier dropdown hardcodes the
+  `Gold`/`Silver`/`Bronze` labels and their percentages instead of fetching from
+  `/admin/customer-tiers`. The tier actually saved to the customer record comes from the
+  DB correctly, so no data is wrong — but the displayed label (e.g. "max 20%") can go
+  stale if an admin edits a tier's ceiling in the Customer Tiers admin tab (12.2 in
+  Phase 2), since the dropdown won't reflect that change. Fix: fetch tiers from
+  `GET /admin/customer-tiers` on mount and render labels from that response instead of a
+  local constant.
 
 ### 12.2 Fix negotiation-resolve status bug (blocks every no-reapproval negotiation)
 - In `approvals.js`'s `/negotiations/:negotiationId/resolve`, after
@@ -363,9 +371,28 @@ Each is small and independently shippable.
 - **Verify:** mark a line shipped after its `promised_delivery_date` has passed →
   it appears in `GET /deal-health/delivery-slippage`
 
+### 12.5 Warehouse stock management had a backend but no UI (violated A4 directly)
+- `server/src/routes/admin/warehouses.js` already had complete `POST/PATCH
+  /admin/warehouses/:id/stock` endpoints — but `WarehousesTab` in
+  `AdminSettings.jsx` never called them; it only let you create a warehouse and
+  showed a read-only "Stock Lines" count. `warehouse_stock` was populated only by
+  the one-time seed script.
+- **Impact:** A4 explicitly requires "Configure stock levels and replenishment rules
+  per warehouse." With no UI, any product added after seeding has zero stock
+  anywhere and is silently unfulfillable — `fulfillment.js`'s split always finds 0
+  available and marks it full backorder, with no way to fix it from the app.
+- **Fix applied:** rebuilt `WarehousesTab` with an expandable "Manage Stock" section
+  per warehouse — an editable table of existing stock lines (qty / reorder
+  threshold / reorder quantity, `PATCH`) plus an "+ Add Stock" form for any product
+  not yet stocked there (`POST`). No backend changes were needed; the routes were
+  already correct.
+- **Verify:** create a new product in the Products tab, then add stock for it via
+  the new "Manage Stock" panel, then confirm it's fulfillable in Phase 6's split.
+
 **Exit criteria for Phase 12:** re-run the two demo flows from Phase 11 end-to-end,
 including a negotiation that does *not* breach ceilings, a subscription reschedule with
-a reason, and a shipment marked complete — all four should now work without error.
+a reason, a shipment marked complete, and a brand-new product being stocked and
+successfully fulfilled — all should now work without error.
 
 ---
 

@@ -86,11 +86,8 @@ function CustomerForm({ tiers, onSave, onCancel, initial = null }) {
 export default function Customers() {
   const { user } = useAuth();
   const [customers, setCustomers] = useState([]);
-  const tiers = [
-    { tier: 'Gold', max_discount_pct: 20 },
-    { tier: 'Silver', max_discount_pct: 10 },
-    { tier: 'Bronze', max_discount_pct: 5 },
-  ];
+  const [tiers, setTiers] = useState([]);
+  const [tiersLoading, setTiersLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -99,10 +96,18 @@ export default function Customers() {
 
   const load = () => {
     setLoading(true);
-    api.get('/admin/customers')
-      .then(r => setCustomers(r.data))
+    // Fetch customers and tiers in parallel; tiers need to resolve before the
+    // create form can mount (so CustomerForm never starts with tier = '').
+    Promise.all([
+      api.get('/admin/customers'),
+      api.get('/admin/customer-tiers'),
+    ])
+      .then(([custRes, tierRes]) => {
+        setCustomers(custRes.data);
+        setTiers(tierRes.data);
+      })
       .catch(e => toast.error(e.response?.data?.error || 'Failed to load customers'))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setTiersLoading(false); });
   };
 
   useEffect(() => {
@@ -133,8 +138,13 @@ export default function Customers() {
           <p className="page-subtitle">{customers.length} customers</p>
         </div>
         {!creating && (
-          <button onClick={() => { setCreating(true); setEditingId(null); }} className="btn-primary">
-            + New Customer
+          <button
+            onClick={() => { setCreating(true); setEditingId(null); }}
+            className="btn-primary"
+            disabled={tiersLoading}
+            title={tiersLoading ? 'Loading tiers…' : undefined}
+          >
+            {tiersLoading ? 'Loading…' : '+ New Customer'}
           </button>
         )}
       </div>

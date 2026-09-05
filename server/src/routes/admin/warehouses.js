@@ -13,12 +13,16 @@ router.get('/', async (_req, res) => {
       SELECT w.*, 
         json_agg(json_build_object(
           'id', ws.id, 'product_id', ws.product_id,
+          'product_name', p.name,
+          'product_unit', p.unit,
+          'product_price', p.price,
           'quantity_on_hand', ws.quantity_on_hand,
           'reorder_threshold', ws.reorder_threshold,
           'reorder_quantity', ws.reorder_quantity
-        ) ORDER BY ws.id) FILTER (WHERE ws.id IS NOT NULL) AS stock
+        ) ORDER BY p.name, ws.id) FILTER (WHERE ws.id IS NOT NULL) AS stock
       FROM warehouses w
       LEFT JOIN warehouse_stock ws ON ws.warehouse_id = w.id
+      LEFT JOIN products p ON p.id = ws.product_id
       GROUP BY w.id ORDER BY w.name
     `);
     res.json(rows);
@@ -92,6 +96,18 @@ router.patch('/:id/stock/:stockId', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE stock line
+router.delete('/:id/stock/:stockId', async (req, res) => {
+  try {
+    const { rowCount } = await pool.query(
+      'DELETE FROM warehouse_stock WHERE id=$1 AND warehouse_id=$2',
+      [req.params.stockId, req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Stock line not found' });
+    res.json({ message: 'Stock line deleted' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

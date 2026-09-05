@@ -251,6 +251,10 @@ These rules apply to **every phase** in this project and must be respected by al
 - [x] `server/src/routes/fulfillment.js` & `client/src/pages/FulfillmentDetail.jsx` (Bug 3 Fix):
   - `POST /api/fulfillment/:quotationId/ship` updates `fulfillment_lines.shipped_at` for non-backorder shipments
   - Added interactive "Mark Shipped" button to fulfillment details table
+- [x] `server/src/routes/admin/warehouses.js` & `client/src/pages/admin/AdminSettings.jsx` (PRD §12.5 & Phase 2.4 Warehouse Stock Management):
+  - Enhanced `GET /api/admin/warehouses` query to join products and return `product_name`, `product_unit`, and `product_price` directly in stock entries
+  - Added `DELETE /api/admin/warehouses/:id/stock/:stockId` endpoint to remove stock lines
+  - Completely redesigned `WarehousesTab` in `AdminSettings.jsx` with expandable "Manage Stock" drawer per warehouse, inline stock quantity on hand, reorder threshold, reorder quantity editing, status badges, and "+ Add Product Stock" form for unstocked products
 - [x] `test_customer_lifecycle.js` — 23 automated end-to-end integration tests verifying customer creation, price list resolution, governance participation, data isolation, and all 3 bug fixes
 
 

@@ -83,27 +83,509 @@ function ApprovalRulesTab() {
   );
 }
 
-// ── Warehouses ────────────────────────────────────────────────────────────────
+// ── Warehouses & Stock Management ─────────────────────────────────────────────
 function WarehousesTab() {
   const [warehouses, setWarehouses] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [expandedWarehouseId, setExpandedWarehouseId] = useState(null);
   const [form, setForm] = useState({ name: '', ship_cost_weight: 1 });
-  const load = () => api.get('/admin/warehouses').then(r => setWarehouses(r.data));
-  useEffect(() => { load(); }, []);
+  const [editingWarehouse, setEditingWarehouse] = useState(null);
+  const [stockEdits, setStockEdits] = useState({});
+  const [newStock, setNewStock] = useState({ product_id: '', quantity_on_hand: 0, reorder_threshold: 10, reorder_quantity: 50 });
 
-  const create = async () => {
-    try { await api.post('/admin/warehouses', form); toast.success('Created'); setForm({ name: '', ship_cost_weight: 1 }); load(); }
-    catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+  const load = async () => {
+    try {
+      const [wRes, pRes] = await Promise.all([
+        api.get('/admin/warehouses'),
+        api.get('/admin/products'),
+      ]);
+      setWarehouses(wRes.data);
+      setProducts(pRes.data);
+      // Auto-expand first warehouse if none expanded and warehouses exist
+      if (!expandedWarehouseId && wRes.data.length > 0) {
+        setExpandedWarehouseId(wRes.data[0].id);
+      }
+    } catch (e) {
+      toast.error('Failed to load warehouses or products');
+    }
   };
 
+  useEffect(() => { load(); }, []);
+
+  const createWarehouse = async () => {
+    if (!form.name.trim()) return toast.error('Warehouse name required');
+    try {
+      await api.post('/admin/warehouses', {
+        name: form.name.trim(),
+        ship_cost_weight: parseFloat(form.ship_cost_weight) || 1,
+      });
+      toast.success('Warehouse created');
+      setForm({ name: '', ship_cost_weight: 1 });
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to create warehouse');
+    }
+  };
+
+  const updateWarehouse = async (id) => {
+    if (!editingWarehouse?.name?.trim()) return toast.error('Warehouse name required');
+    try {
+      await api.patch(`/admin/warehouses/${id}`, {
+        name: editingWarehouse.name.trim(),
+        ship_cost_weight: parseFloat(editingWarehouse.ship_cost_weight) || 1,
+      });
+      toast.success('Warehouse updated');
+      setEditingWarehouse(null);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to update warehouse');
+    }
+  };
+
+  const deleteWarehouse = async (id, name) => {
+    if (!confirm(`Are you sure you want to delete warehouse "${name}"?`)) return;
+    try {
+      await api.delete(`/admin/warehouses/${id}`);
+      toast.success('Warehouse deleted');
+      if (expandedWarehouseId === id) setExpandedWarehouseId(null);
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to delete warehouse');
+    }
+  };
+
+  const handleStockEdit = (stockId, field, val) => {
+    setStockEdits(prev => ({
+      ...prev,
+      [stockId]: {
+        ...prev[stockId],
+        [field]: val,
+      },
+    }));
+  };
+
+  const saveStockLine = async (warehouseId, stockItem) => {
+    const edits = stockEdits[stockItem.id] || {};
+    const qty = edits.quantity_on_hand !== undefined ? parseInt(edits.quantity_on_hand) : stockItem.quantity_on_hand;
+    const threshold = edits.reorder_threshold !== undefined ? (edits.reorder_threshold === '' ? null : parseInt(edits.reorder_threshold)) : stockItem.reorder_threshold;
+    const reorderQty = edits.reorder_quantity !== undefined ? (edits.reorder_quantity === '' ? null : parseInt(edits.reorder_quantity)) : stockItem.reorder_quantity;
+
+    if (isNaN(qty) || qty < 0) return toast.error('Quantity on hand must be a non-negative number');
+    if (threshold !== null && (isNaN(threshold) || threshold < 0)) return toast.error('Reorder threshold must be >= 0');
+    if (reorderQty !== null && (isNaN(reorderQty) || reorderQty < 0)) return toast.error('Reorder quantity must be >= 0');
+
+    try {
+      await api.patch(`/admin/warehouses/${warehouseId}/stock/${stockItem.id}`, {
+        quantity_on_hand: qty,
+        reorder_threshold: threshold,
+        reorder_quantity: reorderQty,
+      });
+      toast.success(`Updated stock for ${stockItem.product_name || 'Product'}`);
+      setStockEdits(prev => {
+        const copy = { ...prev };
+        delete copy[stockItem.id];
+        return copy;
+      });
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to update stock');
+    }
+  };
+
+  const deleteStockLine = async (warehouseId, stockItem) => {
+    if (!confirm(`Remove stock tracking for "${stockItem.product_name || 'this product'}" from this warehouse?`)) return;
+    try {
+      await api.delete(`/admin/warehouses/${warehouseId}/stock/${stockItem.id}`);
+      toast.success('Stock line removed');
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to remove stock line');
+    }
+  };
+
+  const addStockLine = async (warehouseId) => {
+    if (!newStock.product_id) return toast.error('Please select a product');
+    const qty = parseInt(newStock.quantity_on_hand);
+    const threshold = newStock.reorder_threshold === '' ? null : parseInt(newStock.reorder_threshold);
+    const reorderQty = newStock.reorder_quantity === '' ? null : parseInt(newStock.reorder_quantity);
+
+    if (isNaN(qty) || qty < 0) return toast.error('Initial quantity must be >= 0');
+
+    try {
+      await api.post(`/admin/warehouses/${warehouseId}/stock`, {
+        product_id: parseInt(newStock.product_id),
+        quantity_on_hand: qty,
+        reorder_threshold: threshold,
+        reorder_quantity: reorderQty,
+      });
+      toast.success('Stock added successfully');
+      setNewStock({ product_id: '', quantity_on_hand: 0, reorder_threshold: 10, reorder_quantity: 50 });
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to add stock');
+    }
+  };
+
+  const activeWarehouse = warehouses.find(w => w.id === expandedWarehouseId);
+  const activeStock = activeWarehouse?.stock || [];
+  const existingProductIds = new Set(activeStock.map(s => s.product_id));
+  const unstockedProducts = products.filter(p => !existingProductIds.has(p.id));
+
   return (
-    <div>
-      <div className="flex gap-3 mb-6 items-end">
-        <div className="form-group flex-1"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} /></div>
-        <div className="form-group w-36"><label className="label">Ship Cost Weight</label><input type="number" step="0.1" className="input" value={form.ship_cost_weight} onChange={e => setForm(f => ({...f, ship_cost_weight: e.target.value}))} /></div>
-        <button onClick={create} className="btn-primary">Add</button>
+    <div className="space-y-6">
+      {/* Create Warehouse Form */}
+      <div className="card-sm bg-slate-900/90 border border-slate-800">
+        <h3 className="font-semibold text-slate-200 text-sm mb-3">Add New Warehouse</h3>
+        <div className="flex gap-3 items-end flex-wrap">
+          <div className="form-group flex-1 min-w-[200px]">
+            <label className="label">Warehouse Name</label>
+            <input
+              className="input"
+              value={form.name}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Central Depot (Mumbai)"
+            />
+          </div>
+          <div className="form-group w-40">
+            <label className="label">Ship Cost Weight</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0.1"
+              className="input"
+              value={form.ship_cost_weight}
+              onChange={e => setForm(f => ({ ...f, ship_cost_weight: e.target.value }))}
+              placeholder="1.0"
+            />
+          </div>
+          <button onClick={createWarehouse} className="btn-primary">
+            <span>+</span> Add Warehouse
+          </button>
+        </div>
       </div>
-      <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Ship Cost Weight</th><th>Stock Lines</th></tr></thead>
-      <tbody>{warehouses.map(w => <tr key={w.id}><td>{w.name}</td><td>{w.ship_cost_weight}</td><td className="text-slate-400">{w.stock?.length || 0}</td></tr>)}</tbody></table></div>
+
+      {/* Warehouses Overview List */}
+      <div>
+        <h3 className="font-semibold text-slate-200 text-sm mb-3">Configured Warehouses</h3>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Warehouse Name</th>
+                <th>Ship Cost Weight</th>
+                <th>Stocked SKUs</th>
+                <th>Total Units</th>
+                <th>Inventory Alerts</th>
+                <th className="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {warehouses.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-6 text-slate-500">
+                    No warehouses configured yet.
+                  </td>
+                </tr>
+              ) : (
+                warehouses.map(w => {
+                  const stockList = w.stock || [];
+                  const totalUnits = stockList.reduce((sum, s) => sum + (Number(s.quantity_on_hand) || 0), 0);
+                  const lowStockCount = stockList.filter(s => s.reorder_threshold != null && s.quantity_on_hand <= s.reorder_threshold && s.quantity_on_hand > 0).length;
+                  const outOfStockCount = stockList.filter(s => s.quantity_on_hand === 0).length;
+                  const isExpanded = expandedWarehouseId === w.id;
+                  const isEditing = editingWarehouse?.id === w.id;
+
+                  return (
+                    <tr key={w.id} className={isExpanded ? 'bg-indigo-950/20 border-l-2 border-indigo-500' : ''}>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            className="input py-1 text-xs"
+                            value={editingWarehouse.name}
+                            onChange={e => setEditingWarehouse(ew => ({ ...ew, name: e.target.value }))}
+                          />
+                        ) : (
+                          <span className="font-medium text-slate-100">{w.name}</span>
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="0.1"
+                            className="input py-1 text-xs w-24"
+                            value={editingWarehouse.ship_cost_weight}
+                            onChange={e => setEditingWarehouse(ew => ({ ...ew, ship_cost_weight: e.target.value }))}
+                          />
+                        ) : (
+                          <span className="font-mono text-slate-300">{Number(w.ship_cost_weight).toFixed(2)}x</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="text-slate-300">{stockList.length} SKUs</span>
+                      </td>
+                      <td>
+                        <span className="font-semibold text-slate-200">{totalUnits.toLocaleString()}</span>
+                      </td>
+                      <td>
+                        <div className="flex gap-1.5 flex-wrap">
+                          {outOfStockCount > 0 && (
+                            <span className="badge badge-danger">{outOfStockCount} Out of Stock</span>
+                          )}
+                          {lowStockCount > 0 && (
+                            <span className="badge badge-pending">{lowStockCount} Low Stock</span>
+                          )}
+                          {outOfStockCount === 0 && lowStockCount === 0 && stockList.length > 0 && (
+                            <span className="badge badge-approved">Healthy</span>
+                          )}
+                          {stockList.length === 0 && (
+                            <span className="text-xs text-slate-500">No stock lines</span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-2">
+                          {isEditing ? (
+                            <>
+                              <button onClick={() => updateWarehouse(w.id)} className="btn-success btn-sm">
+                                Save
+                              </button>
+                              <button onClick={() => setEditingWarehouse(null)} className="btn-ghost btn-sm">
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setExpandedWarehouseId(isExpanded ? null : w.id)}
+                                className={`btn-sm ${isExpanded ? 'btn-primary' : 'btn-secondary'}`}
+                              >
+                                {isExpanded ? 'Hide Stock ▲' : 'Manage Stock ▼'}
+                              </button>
+                              <button
+                                onClick={() => setEditingWarehouse({ id: w.id, name: w.name, ship_cost_weight: w.ship_cost_weight })}
+                                className="btn-ghost btn-sm text-slate-400 hover:text-slate-200"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => deleteWarehouse(w.id, w.name)}
+                                className="btn-danger btn-sm"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Expanded Manage Stock Panel */}
+      {activeWarehouse && (
+        <div className="card border-indigo-900/50 bg-slate-900/80 space-y-6">
+          <div className="flex justify-between items-center pb-4 border-b border-slate-800">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-bold text-slate-100">Stock & Replenishment Rules:</span>
+                <span className="text-lg font-bold text-indigo-400">{activeWarehouse.name}</span>
+                <span className="text-xs text-slate-500">({activeStock.length} products tracked)</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Configure on-hand inventory levels, reorder warning thresholds, and replenishment batch quantities for greedy fulfillment routing.
+              </p>
+            </div>
+            <button
+              onClick={() => setExpandedWarehouseId(null)}
+              className="btn-ghost btn-sm text-slate-400 hover:text-slate-200"
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          {/* Current Stock Lines Table */}
+          <div>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th className="w-36">Quantity On Hand</th>
+                    <th className="w-36">Reorder Threshold</th>
+                    <th className="w-36">Reorder Quantity</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeStock.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="text-center py-8 text-slate-500">
+                        No products are currently tracked in {activeWarehouse.name}. Use the form below to add stock.
+                      </td>
+                    </tr>
+                  ) : (
+                    activeStock.map(s => {
+                      const edits = stockEdits[s.id] || {};
+                      const currentQty = edits.quantity_on_hand !== undefined ? edits.quantity_on_hand : s.quantity_on_hand;
+                      const currentThreshold = edits.reorder_threshold !== undefined ? edits.reorder_threshold : (s.reorder_threshold ?? '');
+                      const currentReorderQty = edits.reorder_quantity !== undefined ? edits.reorder_quantity : (s.reorder_quantity ?? '');
+                      const isDirty = edits.quantity_on_hand !== undefined || edits.reorder_threshold !== undefined || edits.reorder_quantity !== undefined;
+
+                      const numericQty = Number(currentQty);
+                      const numericThreshold = Number(currentThreshold);
+
+                      let statusBadge = <span className="badge badge-approved">Optimal</span>;
+                      if (numericQty === 0) {
+                        statusBadge = <span className="badge badge-danger">Out of Stock</span>;
+                      } else if (currentThreshold !== '' && numericQty <= numericThreshold) {
+                        statusBadge = <span className="badge badge-pending">Low Stock</span>;
+                      }
+
+                      return (
+                        <tr key={s.id} className={isDirty ? 'bg-indigo-950/20' : ''}>
+                          <td>
+                            <div>
+                              <span className="font-medium text-slate-100">{s.product_name || `Product #${s.product_id}`}</span>
+                              {s.product_unit && (
+                                <span className="text-xs text-slate-500 ml-2">({s.product_unit})</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500">ID: {s.product_id}</div>
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              className="input py-1 text-sm font-mono w-28"
+                              value={currentQty}
+                              onChange={e => handleStockEdit(s.id, 'quantity_on_hand', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="None"
+                              className="input py-1 text-sm font-mono w-28"
+                              value={currentThreshold}
+                              onChange={e => handleStockEdit(s.id, 'reorder_threshold', e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="None"
+                              className="input py-1 text-sm font-mono w-28"
+                              value={currentReorderQty}
+                              onChange={e => handleStockEdit(s.id, 'reorder_quantity', e.target.value)}
+                            />
+                          </td>
+                          <td>{statusBadge}</td>
+                          <td>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => saveStockLine(activeWarehouse.id, s)}
+                                className={`btn-sm ${isDirty ? 'btn-primary' : 'btn-secondary text-slate-400'}`}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => deleteStockLine(activeWarehouse.id, s)}
+                                className="btn-ghost btn-sm text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Add Stock Form */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+            <h4 className="font-semibold text-slate-200 text-sm flex items-center gap-2">
+              <span className="text-indigo-400">+</span> Add Product Stock to {activeWarehouse.name}
+            </h4>
+            {unstockedProducts.length === 0 ? (
+              <p className="text-xs text-slate-500 py-2">
+                All catalog products are currently tracked in this warehouse. Edit existing lines above to adjust stock levels.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <div className="form-group md:col-span-1">
+                  <label className="label">Select Product *</label>
+                  <select
+                    className="select"
+                    value={newStock.product_id}
+                    onChange={e => setNewStock(ns => ({ ...ns, product_id: e.target.value }))}
+                  >
+                    <option value="">-- Choose Product --</option>
+                    {unstockedProducts.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} (₹{p.price})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label">Quantity On Hand</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={newStock.quantity_on_hand}
+                    onChange={e => setNewStock(ns => ({ ...ns, quantity_on_hand: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Reorder Threshold</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="input"
+                    value={newStock.reorder_threshold}
+                    onChange={e => setNewStock(ns => ({ ...ns, reorder_threshold: e.target.value }))}
+                    placeholder="10"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="label">Reorder Quantity</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      className="input flex-1"
+                      value={newStock.reorder_quantity}
+                      onChange={e => setNewStock(ns => ({ ...ns, reorder_quantity: e.target.value }))}
+                      placeholder="50"
+                    />
+                    <button
+                      onClick={() => addStockLine(activeWarehouse.id)}
+                      className="btn-primary whitespace-nowrap"
+                    >
+                      Add Stock
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

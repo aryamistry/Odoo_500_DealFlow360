@@ -39,6 +39,7 @@ router.get('/:quotationId', async (req, res) => {
     const { rows: lines } = await pool.query(`
       SELECT ql.id AS line_id, p.name AS product_name, ql.quantity AS ordered_qty,
              COALESCE(json_agg(json_build_object(
+               'id', fl.id,
                'fulfillment_id', fl.id,
                'warehouse_id', fl.warehouse_id,
                'warehouse_name', w.name,
