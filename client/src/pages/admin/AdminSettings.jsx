@@ -12,6 +12,7 @@ function CategoriesTab() {
   // Read from cache; only re-fetched after mutations via invalidate('categories')
   const { categories: cachedCats, invalidate } = useRefData();
   const cats = cachedCats || [];
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', max_discount_pct: '' });
 
   const create = async () => {
@@ -36,16 +37,37 @@ function CategoriesTab() {
     catch (e) { toast.error('Failed to delete category'); }
   };
 
+  const filteredCats = cats.filter(c => !search.trim() || c.name?.toLowerCase().includes(search.toLowerCase().trim()));
+
   return (
     <div>
-      <div className="flex gap-3 mb-6 items-end">
-        <div className="form-group flex-1"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Hardware" /></div>
+      <div className="flex gap-3 mb-6 items-end flex-wrap">
+        <div className="form-group flex-1 min-w-[200px]"><label className="label">Name</label><input className="input" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Hardware" /></div>
         <div className="form-group w-36"><label className="label">Max Discount %</label><input type="number" min="0" max="100" className="input" value={form.max_discount_pct} onChange={e => setForm(f => ({...f, max_discount_pct: e.target.value}))} /></div>
-        <button onClick={create} className="btn-primary">Add</button>
+        <button onClick={create} className="btn-primary">Add Category</button>
       </div>
+
+      <div className="flex gap-3 mb-3 items-center">
+        <input
+          type="text"
+          placeholder="Search categories..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input max-w-xs text-sm py-1.5"
+        />
+        {search && <button onClick={() => setSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>}
+        <span className="text-xs text-slate-500 font-mono ml-auto">{filteredCats.length} categories</span>
+      </div>
+
       <div className="table-wrap">
         <table className="table"><thead><tr><th>Name</th><th>Max Discount %</th><th></th></tr></thead>
-        <tbody>{cats.map(c => <tr key={c.id}><td>{c.name}</td><td>{c.max_discount_pct}%</td><td><button onClick={() => del(c.id)} className="btn-danger btn-sm">Delete</button></td></tr>)}</tbody></table>
+        <tbody>
+          {filteredCats.length === 0 ? (
+            <tr><td colSpan={3} className="text-center py-6 text-slate-500">No categories found.</td></tr>
+          ) : filteredCats.map(c => (
+            <tr key={c.id}><td>{c.name}</td><td>{c.max_discount_pct}%</td><td><button onClick={() => del(c.id)} className="btn-danger btn-sm">Delete</button></td></tr>
+          ))}
+        </tbody></table>
       </div>
     </div>
   );
@@ -109,6 +131,8 @@ function WarehousesTab() {
   const [editingWarehouse, setEditingWarehouse] = useState(null);
   const [stockEdits, setStockEdits] = useState({});
   const [newStock, setNewStock] = useState({ product_id: '', quantity_on_hand: 0, reorder_threshold: 10, reorder_quantity: 50 });
+  const [warehouseSearch, setWarehouseSearch] = useState('');
+  const [stockSearch, setStockSearch] = useState('');
 
   const load = async () => {
     try {
@@ -243,9 +267,14 @@ function WarehousesTab() {
     }
   };
 
+  const filteredWarehouses = warehouses.filter(w =>
+    !warehouseSearch.trim() || w.name?.toLowerCase().includes(warehouseSearch.toLowerCase().trim())
+  );
   const activeWarehouse = warehouses.find(w => w.id === expandedWarehouseId);
-  const activeStock = activeWarehouse?.stock || [];
-  const existingProductIds = new Set(activeStock.map(s => s.product_id));
+  const activeStock = (activeWarehouse?.stock || []).filter(s =>
+    !stockSearch.trim() || s.product_name?.toLowerCase().includes(stockSearch.toLowerCase().trim())
+  );
+  const existingProductIds = new Set((activeWarehouse?.stock || []).map(s => s.product_id));
   const unstockedProducts = products.filter(p => !existingProductIds.has(p.id));
 
   return (
@@ -283,7 +312,22 @@ function WarehousesTab() {
 
       {/* Warehouses Overview List */}
       <div>
-        <h3 className="font-semibold text-slate-200 text-sm mb-3">Configured Warehouses</h3>
+        <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
+          <h3 className="font-semibold text-slate-200 text-sm">Configured Warehouses</h3>
+          <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              placeholder="Search warehouses..."
+              value={warehouseSearch}
+              onChange={e => setWarehouseSearch(e.target.value)}
+              className="input max-w-xs text-xs py-1"
+            />
+            {warehouseSearch && (
+              <button onClick={() => setWarehouseSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>
+            )}
+            <span className="text-xs text-slate-500 font-mono">{filteredWarehouses.length} warehouses</span>
+          </div>
+        </div>
         <div className="table-wrap">
           <table className="table">
             <thead>
@@ -297,7 +341,7 @@ function WarehousesTab() {
               </tr>
             </thead>
             <tbody>
-              {warehouses.length === 0 ? (
+              {filteredWarehouses.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="text-center py-6 text-slate-500">
                     No warehouses configured yet.
@@ -418,12 +462,24 @@ function WarehousesTab() {
                 Configure on-hand inventory levels, reorder warning thresholds, and replenishment batch quantities for greedy fulfillment routing.
               </p>
             </div>
-            <button
-              onClick={() => setExpandedWarehouseId(null)}
-              className="btn-ghost btn-sm text-slate-400 hover:text-slate-200"
-            >
-              ✕ Close
-            </button>
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="Search stock by product name..."
+                value={stockSearch}
+                onChange={e => setStockSearch(e.target.value)}
+                className="input max-w-xs text-xs py-1"
+              />
+              {stockSearch && (
+                <button onClick={() => setStockSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>
+              )}
+              <button
+                onClick={() => setExpandedWarehouseId(null)}
+                className="btn-ghost btn-sm text-slate-400 hover:text-slate-200"
+              >
+                ✕ Close
+              </button>
+            </div>
           </div>
 
           {/* Current Stock Lines Table */}
@@ -611,6 +667,7 @@ function WarehousesTab() {
 function SubPlansTab() {
   const { subscriptionPlans: cachedPlans, invalidate } = useRefData();
   const plans = cachedPlans || [];
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({
     name: '',
     billing_cycle: 'monthly',
@@ -636,6 +693,11 @@ function SubPlansTab() {
       toast.error(e.response?.data?.error || 'Failed to create plan');
     }
   };
+
+  const filteredPlans = plans.filter(p => !search.trim() ||
+    p.name?.toLowerCase().includes(search.toLowerCase().trim()) ||
+    p.billing_cycle?.toLowerCase().includes(search.toLowerCase().trim())
+  );
 
   return (
     <div>
@@ -704,6 +766,19 @@ function SubPlansTab() {
         </button>
       </div>
 
+      {/* Search Bar */}
+      <div className="flex gap-3 mb-3 items-center">
+        <input
+          type="text"
+          placeholder="Search subscription plans..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input max-w-xs text-sm py-1.5"
+        />
+        {search && <button onClick={() => setSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>}
+        <span className="text-xs text-slate-500 font-mono ml-auto">{filteredPlans.length} plans</span>
+      </div>
+
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -716,14 +791,14 @@ function SubPlansTab() {
             </tr>
           </thead>
           <tbody>
-            {plans.length === 0 ? (
+            {filteredPlans.length === 0 ? (
               <tr>
                 <td colSpan="5" className="text-center py-6 text-slate-500">
                   No subscription plans found.
                 </td>
               </tr>
             ) : (
-              plans.map(p => (
+              filteredPlans.map(p => (
                 <tr key={p.id}>
                   <td className="font-medium text-slate-200">{p.name}</td>
                   <td className="capitalize">{p.billing_cycle}</td>
@@ -756,12 +831,13 @@ function SubPlansTab() {
 function ProductsTab() {
   const { categories: cachedCats, subscriptionPlans: cachedPlans } = useRefData();
   const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
   const cats = cachedCats || [];
   const plans = cachedPlans || [];
   const [form, setForm] = useState({ name: '', category_id: '', price: '', cost_price: '', tax_pct: 18, subscription_plan_id: '' });
   const load = () => {
     api.get('/admin/products').then(r => setProducts(r.data));
-    // cats and plans come from RefDataContext — no per-mount fetch needed
   };
   useEffect(() => { load(); }, []);
 
@@ -797,6 +873,14 @@ function ProductsTab() {
     catch (e) { toast.error('Failed to archive product'); }
   };
 
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = !productSearch.trim() ||
+      p.name?.toLowerCase().includes(productSearch.toLowerCase().trim()) ||
+      p.category_name?.toLowerCase().includes(productSearch.toLowerCase().trim());
+    const matchesCat = !filterCategory || String(p.category_id) === String(filterCategory);
+    return matchesSearch && matchesCat;
+  });
+
   return (
     <div>
       <div className="card mb-6 space-y-3">
@@ -821,8 +905,40 @@ function ProductsTab() {
         </div>
         <button onClick={create} className="btn-primary">Create Product</button>
       </div>
+
+      {/* Search & Filter bar for Products */}
+      <div className="flex gap-3 mb-4 items-center flex-wrap">
+        <input
+          type="text"
+          placeholder="Search products by name or category..."
+          value={productSearch}
+          onChange={e => setProductSearch(e.target.value)}
+          className="input max-w-sm flex-1"
+        />
+        <select
+          value={filterCategory}
+          onChange={e => setFilterCategory(e.target.value)}
+          className="select w-48"
+        >
+          <option value="">All Categories</option>
+          {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        {(productSearch || filterCategory) && (
+          <button
+            onClick={() => { setProductSearch(''); setFilterCategory(''); }}
+            className="btn-ghost btn-sm text-slate-400"
+          >
+            Clear
+          </button>
+        )}
+        <span className="text-xs text-slate-500 font-mono ml-auto">{filteredProducts.length} items</span>
+      </div>
+
       <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Category</th><th>Price</th><th>Cost</th><th>Type</th><th>Status</th><th></th></tr></thead>
-      <tbody>{products.map(p => (
+      <tbody>
+        {filteredProducts.length === 0 ? (
+          <tr><td colSpan={7} className="text-center py-6 text-slate-500">No products match your search.</td></tr>
+        ) : filteredProducts.map(p => (
         <tr key={p.id}>
           <td className="font-medium text-sm">{p.name}</td>
           <td className="text-slate-400 text-sm">{p.category_name}</td>
@@ -877,6 +993,7 @@ function PriceListsTab() {
 function UpsellRulesTab() {
   const [rules, setRules] = useState([]);
   const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState('');
   const [form, setForm] = useState({ primary_product_id: '', suggested_product_id: '', is_promoted: false, min_margin_pct: '' });
   const load = () => { api.get('/admin/upsell-rules').then(r => setRules(r.data)); api.get('/admin/products').then(r => setProducts(r.data)); };
   useEffect(() => { load(); }, []);
@@ -910,6 +1027,11 @@ function UpsellRulesTab() {
 
   const del = async (id) => { try { await api.delete(`/admin/upsell-rules/${id}`); toast.success('Deleted'); load(); } catch (e) { toast.error('Failed'); } };
 
+  const filteredRules = rules.filter(r => !search.trim() ||
+    r.primary_product_name?.toLowerCase().includes(search.toLowerCase().trim()) ||
+    r.suggested_product_name?.toLowerCase().includes(search.toLowerCase().trim())
+  );
+
   return (
     <div>
       <div className="flex gap-3 mb-6 items-end flex-wrap">
@@ -927,16 +1049,34 @@ function UpsellRulesTab() {
         <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={form.is_promoted} onChange={e => setForm(f => ({...f, is_promoted: e.target.checked}))} className="w-4 h-4" /> Promoted</label>
         <button onClick={create} className="btn-primary">Add Rule</button>
       </div>
+
+      {/* Search bar */}
+      <div className="flex gap-3 mb-3 items-center">
+        <input
+          type="text"
+          placeholder="Search upsell rules..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input max-w-xs text-sm py-1.5"
+        />
+        {search && <button onClick={() => setSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>}
+        <span className="text-xs text-slate-500 font-mono ml-auto">{filteredRules.length} rules</span>
+      </div>
+
       <div className="table-wrap"><table className="table"><thead><tr><th>Primary Product</th><th>Suggested Product</th><th>Promoted</th><th>Min Margin %</th><th></th></tr></thead>
-      <tbody>{rules.map(r => (
-        <tr key={r.id}>
-          <td className="text-sm">{r.primary_product_name}</td>
-          <td className="text-sm">{r.suggested_product_name}</td>
-          <td>{r.is_promoted ? <span className="badge badge-approved">★ Yes</span> : 'No'}</td>
-          <td className="text-slate-400">{r.min_margin_pct ? `${r.min_margin_pct}%` : '—'}</td>
-          <td><button onClick={() => del(r.id)} className="btn-danger btn-sm">Delete</button></td>
-        </tr>
-      ))}</tbody></table></div>
+      <tbody>
+        {filteredRules.length === 0 ? (
+          <tr><td colSpan={5} className="text-center py-6 text-slate-500">No upsell rules found.</td></tr>
+        ) : filteredRules.map(r => (
+          <tr key={r.id}>
+            <td className="text-sm">{r.primary_product_name}</td>
+            <td className="text-sm">{r.suggested_product_name}</td>
+            <td>{r.is_promoted ? <span className="badge badge-approved">★ Yes</span> : 'No'}</td>
+            <td className="text-slate-400">{r.min_margin_pct ? `${r.min_margin_pct}%` : '—'}</td>
+            <td><button onClick={() => del(r.id)} className="btn-danger btn-sm">Delete</button></td>
+          </tr>
+        ))}
+      </tbody></table></div>
     </div>
   );
 }
@@ -944,6 +1084,7 @@ function UpsellRulesTab() {
 // ── Platform Settings (Gap 4) ────────────────────────────────────────────
 function PlatformSettingsTab() {
   const [settings, setSettings] = useState([]);
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState({});
   const load = () => api.get('/admin/platform-settings').then(r => setSettings(r.data));
   useEffect(() => { load(); }, []);
@@ -961,9 +1102,26 @@ function PlatformSettingsTab() {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to update'); }
   };
 
+  const filteredSettings = settings.filter(s => !search.trim() ||
+    s.key?.toLowerCase().includes(search.toLowerCase().trim()) ||
+    s.description?.toLowerCase().includes(search.toLowerCase().trim()) ||
+    s.label?.toLowerCase().includes(search.toLowerCase().trim())
+  );
+
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-400">Configure system-wide settings. Changes take effect immediately — no server restart required.</p>
+      <div className="flex gap-3 mb-3 items-center">
+        <input
+          type="text"
+          placeholder="Search settings by key or description..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="input max-w-sm text-sm py-1.5"
+        />
+        {search && <button onClick={() => setSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>}
+        <span className="text-xs text-slate-500 font-mono ml-auto">{filteredSettings.length} settings</span>
+      </div>
+
       <div className="table-wrap">
         <table className="table">
           <thead>
@@ -975,15 +1133,15 @@ function PlatformSettingsTab() {
             </tr>
           </thead>
           <tbody>
-            {settings.length === 0 ? (
-              <tr><td colSpan="4" className="text-center py-6 text-slate-500">No settings found. Ensure the <code>platform_settings</code> table is seeded.</td></tr>
-            ) : settings.map(s => {
+            {filteredSettings.length === 0 ? (
+              <tr><td colSpan="4" className="text-center py-6 text-slate-500">No settings found.</td></tr>
+            ) : filteredSettings.map(s => {
               const val = editing[s.key] !== undefined ? editing[s.key] : s.value;
               const isDirty = editing[s.key] !== undefined && editing[s.key] !== s.value;
               return (
                 <tr key={s.key} className={isDirty ? 'bg-indigo-950/20' : ''}>
                   <td><code className="text-indigo-300 text-xs bg-slate-900 px-2 py-0.5 rounded">{s.key}</code></td>
-                  <td className="text-slate-400 text-sm">{s.label || '—'}</td>
+                  <td className="text-slate-400 text-sm">{s.label || s.description || '—'}</td>
                   <td>
                     <input
                       className="input py-1 text-sm font-mono w-full"

@@ -11,6 +11,8 @@ export default function InvoicesList() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -22,6 +24,7 @@ export default function InvoicesList() {
     setLoading(true);
     const params = { page, limit };
     if (status) params.status = status;
+    if (search) params.search = search;
     api.get('/billing/invoices', { params })
       .then(r => {
         if (r.data && r.data.data) {
@@ -38,7 +41,19 @@ export default function InvoicesList() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchInvoices(); }, [status, page, limit]);
+  useEffect(() => { fetchInvoices(); }, [status, page, limit, search]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleClear = () => {
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+  };
 
   // Reset to page 1 when status filter changes
   const handleStatusChange = (s) => { setStatus(s); setPage(1); };
@@ -53,16 +68,33 @@ export default function InvoicesList() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        {STATUSES.map(s => (
-          <button
-            key={s}
-            onClick={() => handleStatusChange(s)}
-            className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-secondary'}`}
-          >
-            {s || 'All'}
-          </button>
-        ))}
+      {/* Filters & Search */}
+      <div className="flex flex-wrap gap-3 items-center justify-between mb-4">
+        <form onSubmit={handleSearch} className="flex gap-2 items-center flex-1 max-w-md">
+          <input
+            type="text"
+            placeholder="Search by invoice #, quote #, customer..."
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            className="input flex-1"
+          />
+          <button type="submit" className="btn-secondary btn-sm">Search</button>
+          {search && (
+            <button type="button" onClick={handleClear} className="btn-ghost btn-sm text-slate-400">Clear</button>
+          )}
+        </form>
+
+        <div className="flex gap-2 flex-wrap">
+          {STATUSES.map(s => (
+            <button
+              key={s}
+              onClick={() => handleStatusChange(s)}
+              className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-secondary'}`}
+            >
+              {s || 'All'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="table-wrap">

@@ -14,9 +14,23 @@ router.use(['/subscriptions', '/invoices'], authenticate, requireRole('sales_rep
 
 router.get('/subscriptions', async (req, res) => {
   try {
+    const { search } = req.query;
     const { page, limit, offset, isPaginated } = getPaginationParams(req);
-    const limitClause  = isPaginated ? `LIMIT ${limit}` : '';
-    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
+    let where = [];
+    let params = [];
+    let i = 1;
+
+    if (search && search.trim()) {
+      where.push(`(c.company_name ILIKE $${i} OR p.name ILIKE $${i} OR sp.name ILIKE $${i} OR s.status::text ILIKE $${i})`);
+      params.push(`%${search.trim()}%`);
+      i++;
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const limitClause  = isPaginated ? `LIMIT $${i++}` : '';
+    const offsetClause = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
 
     const { rows } = await pool.query(`
       SELECT s.*, c.company_name AS customer_name,
@@ -27,9 +41,10 @@ router.get('/subscriptions', async (req, res) => {
       JOIN quotation_lines ql ON ql.id=s.quotation_line_id
       JOIN products p ON p.id=ql.product_id
       LEFT JOIN subscription_plans sp ON sp.id=p.subscription_plan_id
+      ${whereClause}
       ORDER BY s.next_bill_date
       ${limitClause} ${offsetClause}
-    `);
+    `, params);
     const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
     const clean = rows.map(({ total_count, ...r }) => r);
     sendPaginated(res, clean, { page, limit, total, isPaginated });
@@ -255,7 +270,7 @@ router.post('/subscriptions/:id/cancel', requireRole('admin', 'finance', 'sales_
 
 router.get('/invoices', async (req, res) => {
   try {
-    const { status, customer_id } = req.query;
+    const { status, customer_id, search } = req.query;
     const { page, limit, offset, isPaginated } = getPaginationParams(req);
 
     let where = [];
@@ -263,6 +278,11 @@ router.get('/invoices', async (req, res) => {
     let i = 1;
     if (status) { where.push(`i.status=$${i++}::invoice_status`); params.push(status); }
     if (customer_id) { where.push(`i.customer_id=$${i++}`); params.push(customer_id); }
+    if (search && search.trim()) {
+      where.push(`(i.invoice_number ILIKE $${i} OR c.company_name ILIKE $${i} OR q.quote_number ILIKE $${i})`);
+      params.push(`%${search.trim()}%`);
+      i++;
+    }
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
 
     const limitClause  = isPaginated ? `LIMIT $${i++}`  : '';

@@ -13,10 +13,28 @@ router.use(authenticate);
 // ── Approvals List (manager/finance view) ─────────────────────────────────────
 router.get('/', requireRole('sales_manager', 'finance', 'admin'), async (req, res) => {
   try {
-    const roleFilter = req.user.role === 'admin' ? '' : `AND aps.approver_role = '${req.user.role}'`;
+    const { search } = req.query;
     const { page, limit, offset, isPaginated } = getPaginationParams(req);
-    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
-    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
+    let where = ["aps.status='pending'"];
+    let params = [];
+    let i = 1;
+
+    if (req.user.role !== 'admin') {
+      where.push(`aps.approver_role = $${i++}`);
+      params.push(req.user.role);
+    }
+
+    if (search && search.trim()) {
+      where.push(`(q.quote_number ILIKE $${i} OR c.company_name ILIKE $${i} OR u.name ILIKE $${i})`);
+      params.push(`%${search.trim()}%`);
+      i++;
+    }
+
+    const whereClause = 'WHERE ' + where.join(' AND ');
+    const limitClause  = isPaginated ? `LIMIT $${i++}`  : '';
+    const offsetClause = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
 
     const { rows } = await pool.query(`
       SELECT aps.*, q.quote_number, q.status AS quote_status, q.risk_level,
@@ -29,10 +47,10 @@ router.get('/', requireRole('sales_manager', 'finance', 'admin'), async (req, re
       JOIN quotations q ON q.id=aps.quotation_id
       JOIN customers c ON c.id=q.customer_id
       JOIN users u ON u.id=q.sales_rep_id
-      WHERE aps.status='pending' ${roleFilter}
+      ${whereClause}
       ORDER BY aps.created_at DESC
       ${limitClause} ${offsetClause}
-    `);
+    `, params);
     const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
     const clean = rows.map(({ total_count, ...r }) => r);
     sendPaginated(res, clean, { page, limit, total, isPaginated });

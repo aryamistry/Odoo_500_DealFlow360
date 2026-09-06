@@ -8,6 +8,8 @@ import Pagination from '../components/Pagination';
 export default function SubscriptionsList() {
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -17,7 +19,9 @@ export default function SubscriptionsList() {
 
   const fetchSubs = () => {
     setLoading(true);
-    api.get('/subscriptions', { params: { page, limit } })
+    const params = { page, limit };
+    if (search) params.search = search;
+    api.get('/subscriptions', { params })
       .then(r => {
         if (r.data && r.data.data) {
           setSubs(r.data.data);
@@ -33,7 +37,19 @@ export default function SubscriptionsList() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchSubs(); }, [page, limit]);
+  useEffect(() => { fetchSubs(); }, [page, limit, search]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleClear = () => {
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+  };
 
   const handleLimitChange = (l) => { setLimit(l); setPage(1); };
 
@@ -45,6 +61,21 @@ export default function SubscriptionsList() {
           <p className="page-subtitle">{total} subscriptions</p>
         </div>
       </div>
+
+      {/* Search Bar */}
+      <form onSubmit={handleSearch} className="flex gap-3 mb-4 items-center flex-wrap">
+        <input
+          type="text"
+          placeholder="Search by customer, product, plan, status..."
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          className="input max-w-sm flex-1"
+        />
+        <button type="submit" className="btn-secondary btn-sm">Search</button>
+        {search && (
+          <button type="button" onClick={handleClear} className="btn-ghost btn-sm text-slate-400">Clear</button>
+        )}
+      </form>
 
       <div className="table-wrap">
         <table className="table">

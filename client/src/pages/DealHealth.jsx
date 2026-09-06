@@ -9,6 +9,7 @@ export default function DealHealth() {
   const [anomalies, setAnomalies] = useState([]);
   const [slippage, setSlippage] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -36,26 +37,46 @@ export default function DealHealth() {
     } catch (e) { toast.error('Failed'); }
   };
 
+  const qMatch = (str) => !search.trim() || str?.toLowerCase().includes(search.toLowerCase().trim());
+
+  const filteredStalled = stalled.filter(d => qMatch(d.quote_number) || qMatch(d.customer_name) || qMatch(d.rep_name));
+  const filteredAnomalies = anomalies.filter(a => qMatch(a.quote_number) || qMatch(a.rep_name) || qMatch(a.product_name));
+  const filteredSlippage = slippage.filter(s => qMatch(s.quote_number) || qMatch(s.customer_name) || qMatch(s.rep_name));
+
   return (
     <div className="space-y-6">
-      <div className="page-header"><h1 className="page-title">Deal Health Dashboard</h1></div>
+      <div className="page-header flex justify-between items-center flex-wrap gap-3">
+        <h1 className="page-title">Deal Health Dashboard</h1>
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Search deals, reps, customers..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="input w-64 text-sm"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="btn-ghost btn-sm text-slate-400">Clear</button>
+          )}
+        </div>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="stat-card border-l-4 border-amber-500"><span className="stat-label">Stalled Deals</span><span className="stat-value text-amber-400">{stalled.length}</span></div>
-        <div className="stat-card border-l-4 border-red-500"><span className="stat-label">Discount Anomalies</span><span className="stat-value text-red-400">{anomalies.length}</span></div>
-        <div className="stat-card border-l-4 border-purple-500"><span className="stat-label">Delivery Slippage</span><span className="stat-value text-purple-400">{slippage.length}</span></div>
+        <div className="stat-card border-l-4 border-amber-500"><span className="stat-label">Stalled Deals</span><span className="stat-value text-amber-400">{filteredStalled.length}</span></div>
+        <div className="stat-card border-l-4 border-red-500"><span className="stat-label">Discount Anomalies</span><span className="stat-value text-red-400">{filteredAnomalies.length}</span></div>
+        <div className="stat-card border-l-4 border-purple-500"><span className="stat-label">Delivery Slippage</span><span className="stat-value text-purple-400">{filteredSlippage.length}</span></div>
       </div>
 
       {/* Stalled Deals */}
       <div className="card">
         <h2 className="font-semibold mb-4 text-amber-400">⏸ Stalled Deals (&gt;7 days inactive)</h2>
-        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : stalled.length === 0 ? <p className="text-slate-500 text-sm">No stalled deals 🎉</p> : (
+        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : filteredStalled.length === 0 ? <p className="text-slate-500 text-sm">No stalled deals matching search 🎉</p> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Quote #</th><th>Customer</th><th>Rep</th><th>Amount</th><th>Status</th><th>Days Stalled</th><th>Actions</th></tr></thead>
               <tbody>
-                {stalled.map(d => (
+                {filteredStalled.map(d => (
                   <tr key={d.id}>
                     <td><Link to={`/quotations/${d.id}`} className="text-indigo-400 hover:underline font-mono text-xs">{d.quote_number}</Link></td>
                     <td>{d.customer_name}</td>
@@ -78,12 +99,12 @@ export default function DealHealth() {
       {/* Discount Anomalies */}
       <div className="card">
         <h2 className="font-semibold mb-4 text-red-400">⚠ Discount Anomalies (&gt;5% above rep avg)</h2>
-        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : anomalies.length === 0 ? <p className="text-slate-500 text-sm">No anomalies detected</p> : (
+        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : filteredAnomalies.length === 0 ? <p className="text-slate-500 text-sm">No anomalies matching search</p> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Quote #</th><th>Rep</th><th>Product</th><th>Current Disc %</th><th>Rep Avg %</th><th>Delta</th></tr></thead>
               <tbody>
-                {anomalies.map(a => (
+                {filteredAnomalies.map(a => (
                   <tr key={a.line_id}>
                     <td className="font-mono text-xs text-indigo-400">{a.quote_number}</td>
                     <td>{a.rep_name}</td>
@@ -102,17 +123,17 @@ export default function DealHealth() {
       {/* Delivery Slippage */}
       <div className="card">
         <h2 className="font-semibold mb-4 text-purple-400">📅 Delivery Slippage</h2>
-        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : slippage.length === 0 ? <p className="text-slate-500 text-sm">No delivery slippage</p> : (
+        {loading ? <p className="text-slate-500 text-sm">Loading...</p> : filteredSlippage.length === 0 ? <p className="text-slate-500 text-sm">No delivery slippage matching search</p> : (
           <div className="table-wrap">
             <table className="table">
               <thead><tr><th>Quote #</th><th>Customer</th><th>Promised</th><th>Actual</th><th>Slippage</th></tr></thead>
               <tbody>
-                {slippage.map(s => (
+                {filteredSlippage.map(s => (
                   <tr key={s.id}>
                     <td><Link to={`/quotations/${s.id}`} className="text-indigo-400 hover:underline font-mono text-xs">{s.quote_number}</Link></td>
                     <td>{s.customer_name}</td>
                     <td className="font-mono text-sm">{s.promised_delivery_date}</td>
-                    <td className="font-mono text-sm">{new Date(s.actual_completion).toLocaleDateString()}</td>
+                    <td className="font-mono text-sm">{s.actual_completion ? new Date(s.actual_completion).toLocaleDateString() : '—'}</td>
                     <td className="text-purple-400 font-semibold">{Math.floor(s.slippage_days)}d late</td>
                   </tr>
                 ))}

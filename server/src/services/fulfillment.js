@@ -16,6 +16,18 @@ async function splitFulfillment(quotationId) {
   try {
     await client.query('BEGIN');
 
+    // Idempotency check: prevent duplicate fulfillment splitting and stock decrementing
+    const { rows: existingFulfillments } = await client.query(
+      `SELECT fl.id FROM fulfillment_lines fl
+       JOIN quotation_lines ql ON ql.id = fl.quotation_line_id
+       WHERE ql.quotation_id = $1 LIMIT 1`,
+      [quotationId]
+    );
+    if (existingFulfillments.length > 0) {
+      await client.query('ROLLBACK');
+      return { alreadyExists: true };
+    }
+
     // Get only physical (non-subscription) lines for this quotation.
     // Subscription-linked products are digital and must NOT enter warehouse stock or backorder flows.
     const { rows: lines } = await client.query(

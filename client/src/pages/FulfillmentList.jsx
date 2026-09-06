@@ -8,6 +8,8 @@ import Pagination from '../components/Pagination';
 export default function FulfillmentList() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -17,7 +19,9 @@ export default function FulfillmentList() {
 
   const fetchItems = () => {
     setLoading(true);
-    api.get('/fulfillment', { params: { page, limit } })
+    const params = { page, limit };
+    if (search) params.search = search;
+    api.get('/fulfillment', { params })
       .then(r => {
         if (r.data && r.data.data) {
           setItems(r.data.data);
@@ -33,7 +37,19 @@ export default function FulfillmentList() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchItems(); }, [page, limit]);
+  useEffect(() => { fetchItems(); }, [page, limit, search]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setSearch(searchInput);
+    setPage(1);
+  };
+
+  const handleClear = () => {
+    setSearchInput('');
+    setSearch('');
+    setPage(1);
+  };
 
   const handleLimitChange = (l) => { setLimit(l); setPage(1); };
 
@@ -52,6 +68,21 @@ export default function FulfillmentList() {
           <p className="page-subtitle">{total} orders</p>
         </div>
       </div>
+
+      {/* Search Bar */}
+      <form onSubmit={handleSearch} className="flex gap-3 mb-4 items-center flex-wrap">
+        <input
+          type="text"
+          placeholder="Search by quote # or customer..."
+          value={searchInput}
+          onChange={e => setSearchInput(e.target.value)}
+          className="input max-w-sm flex-1"
+        />
+        <button type="submit" className="btn-secondary btn-sm">Search</button>
+        {search && (
+          <button type="button" onClick={handleClear} className="btn-ghost btn-sm text-slate-400">Clear</button>
+        )}
+      </form>
 
       <div className="table-wrap">
         <table className="table">

@@ -16,6 +16,16 @@ async function createInvoices(quotationId, customerId) {
   try {
     await client.query('BEGIN');
 
+    // Idempotency check: prevent duplicate invoice and subscription generation
+    const { rows: existingInvoices } = await client.query(
+      'SELECT id FROM invoices WHERE quotation_id = $1',
+      [quotationId]
+    );
+    if (existingInvoices.length > 0) {
+      await client.query('ROLLBACK');
+      return { alreadyExists: true, invoiceCount: existingInvoices.length };
+    }
+
     // Get all lines with product subscription plan info
     const { rows: lines } = await client.query(
       `SELECT ql.*, p.subscription_plan_id, p.name AS product_name,

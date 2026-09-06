@@ -13,9 +13,23 @@ router.use(authenticate, requireRole('sales_rep', 'sales_manager', 'finance', 'a
 // ── Fulfillment List ──────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
+    const { search } = req.query;
     const { page, limit, offset, isPaginated } = getPaginationParams(req);
-    const limitClause  = isPaginated ? `LIMIT ${limit}`  : '';
-    const offsetClause = isPaginated ? `OFFSET ${offset}` : '';
+
+    let where = ["q.status IN ('approved','confirmed')"];
+    let params = [];
+    let i = 1;
+
+    if (search && search.trim()) {
+      where.push(`(q.quote_number ILIKE $${i} OR c.company_name ILIKE $${i})`);
+      params.push(`%${search.trim()}%`);
+      i++;
+    }
+
+    const whereClause = 'WHERE ' + where.join(' AND ');
+    const limitClause  = isPaginated ? `LIMIT $${i++}`  : '';
+    const offsetClause = isPaginated ? `OFFSET $${i++}` : '';
+    if (isPaginated) { params.push(limit); params.push(offset); }
 
     const { rows } = await pool.query(`
       SELECT q.id AS quotation_id, q.quote_number, c.company_name AS customer_name, q.status,
@@ -28,10 +42,10 @@ router.get('/', async (req, res) => {
              COUNT(*) OVER() AS total_count
       FROM quotations q
       JOIN customers c ON c.id=q.customer_id
-      WHERE q.status IN ('approved','confirmed')
+      ${whereClause}
       ORDER BY q.updated_at DESC
       ${limitClause} ${offsetClause}
-    `);
+    `, params);
     const total = parseInt(rows[0]?.total_count ?? rows.length, 10);
     const clean = rows.map(({ total_count, ...r }) => r);
     sendPaginated(res, clean, { page, limit, total, isPaginated });
